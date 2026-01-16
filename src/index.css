@@ -1,0 +1,232 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Hotel Autopilot ONE - Professional Dark SaaS Design System */
+
+@layer base {
+  :root {
+    --background: 222 47% 6%;
+    --foreground: 210 40% 98%;
+
+    --card: 222 47% 8%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 47% 10%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 160 84% 39%;
+    --primary-foreground: 222 47% 6%;
+
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217 33% 14%;
+    --muted-foreground: 215 20% 55%;
+
+    --accent: 217 33% 20%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217 33% 18%;
+    --input: 217 33% 18%;
+    --ring: 160 84% 39%;
+
+    --radius: 0.625rem;
+
+    /* Status Colors */
+    --status-success: 160 84% 39%;
+    --status-warning: 38 92% 50%;
+    --status-error: 0 84% 60%;
+    --status-info: 217 91% 60%;
+    --status-pending: 262 83% 58%;
+
+    /* Semantic Colors */
+    --booking-confirmed: 160 84% 39%;
+    --booking-pending: 38 92% 50%;
+    --booking-cancelled: 0 84% 60%;
+    --booking-checked-in: 217 91% 60%;
+    --booking-checked-out: 262 83% 58%;
+
+    --room-available: 160 84% 39%;
+    --room-occupied: 217 91% 60%;
+    --room-dirty: 38 92% 50%;
+    --room-cleaning: 262 83% 58%;
+    --room-maintenance: 0 84% 60%;
+
+    /* Glass Effects */
+    --glass-bg: 222 47% 11% / 0.8;
+    --glass-border: 217 33% 25% / 0.5;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(160, 84%, 39%), hsl(160, 84%, 29%));
+    --gradient-accent: linear-gradient(135deg, hsl(217, 91%, 60%), hsl(262, 83%, 58%));
+    --gradient-surface: linear-gradient(180deg, hsl(222, 47%, 10%), hsl(222, 47%, 6%));
+    --gradient-card: linear-gradient(180deg, hsl(222, 47%, 10%), hsl(222, 47%, 8%));
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5), 0 4px 6px -4px rgb(0 0 0 / 0.4);
+    --shadow-glow: 0 0 20px hsl(160, 84%, 39%, 0.3);
+
+    /* Sidebar */
+    --sidebar-background: 222 47% 7%;
+    --sidebar-foreground: 215 20% 65%;
+    --sidebar-primary: 160 84% 39%;
+    --sidebar-primary-foreground: 222 47% 6%;
+    --sidebar-accent: 217 33% 14%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217 33% 15%;
+    --sidebar-ring: 160 84% 39%;
+  }
+
+  .dark {
+    /* Already dark by default */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-muted/30;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground/30 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/50;
+  }
+}
+
+@layer components {
+  /* Status badge variants */
+  .status-badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full;
+  }
+
+  .status-badge-success {
+    @apply bg-[hsl(var(--status-success)/0.15)] text-[hsl(var(--status-success))];
+  }
+
+  .status-badge-warning {
+    @apply bg-[hsl(var(--status-warning)/0.15)] text-[hsl(var(--status-warning))];
+  }
+
+  .status-badge-error {
+    @apply bg-[hsl(var(--status-error)/0.15)] text-[hsl(var(--status-error))];
+  }
+
+  .status-badge-info {
+    @apply bg-[hsl(var(--status-info)/0.15)] text-[hsl(var(--status-info))];
+  }
+
+  .status-badge-pending {
+    @apply bg-[hsl(var(--status-pending)/0.15)] text-[hsl(var(--status-pending))];
+  }
+
+  /* Glass card effect */
+  .glass-card {
+    @apply bg-card/80 backdrop-blur-xl border border-border/50 rounded-xl;
+    box-shadow: var(--shadow-md);
+  }
+
+  /* Glow effects */
+  .glow-primary {
+    box-shadow: var(--shadow-glow);
+  }
+
+  /* Automation indicator */
+  .automation-pulse {
+    @apply relative;
+  }
+
+  .automation-pulse::before {
+    content: '';
+    @apply absolute -inset-1 bg-primary/20 rounded-full animate-ping;
+  }
+
+  /* KPI card */
+  .kpi-card {
+    @apply glass-card p-5 flex flex-col gap-2;
+  }
+
+  .kpi-value {
+    @apply text-3xl font-bold tracking-tight;
+  }
+
+  .kpi-label {
+    @apply text-sm text-muted-foreground;
+  }
+
+  .kpi-trend {
+    @apply text-xs font-medium flex items-center gap-1;
+  }
+
+  .kpi-trend-up {
+    @apply text-[hsl(var(--status-success))];
+  }
+
+  .kpi-trend-down {
+    @apply text-[hsl(var(--status-error))];
+  }
+}
+
+@layer utilities {
+  /* Animation utilities */
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  .animate-slide-in {
+    animation: slideIn 0.3s ease-out;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.2s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes scaleIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  /* Gradient text */
+  .text-gradient-primary {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-primary);
+  }
+
+  .text-gradient-accent {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-accent);
+  }
+}

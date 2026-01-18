@@ -26,9 +26,17 @@ export function useGuests() {
         .from("guests")
         .select("*")
         .order("name");
-      
+
       if (error) throw error;
-      return data as Guest[];
+
+      // Map and provide defaults for missing columns to prevent crashes
+      return (data || []).map((guest: any) => ({
+        ...guest,
+        total_stays: guest.total_stays || 0,
+        total_spent: guest.total_spent || 0,
+        last_stay_at: guest.last_stay_at || null,
+        tags: guest.tags || [], // Ensure tags is array
+      })) as Guest[];
     },
   });
 }
@@ -43,7 +51,7 @@ export function useCreateGuest() {
         .insert(guest)
         .select()
         .single();
-      
+
       if (error) throw error;
       return data;
     },
@@ -68,7 +76,7 @@ export function useUpdateGuest() {
         .eq("id", id)
         .select()
         .single();
-      
+
       if (error) throw error;
       return data;
     },
@@ -91,7 +99,7 @@ export function useDeleteGuest() {
         .from("guests")
         .delete()
         .eq("id", id);
-      
+
       if (error) throw error;
     },
     onSuccess: () => {

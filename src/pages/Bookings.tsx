@@ -74,6 +74,16 @@ export default function Bookings() {
     : 0;
   const totalAmount = selectedRoom ? selectedRoom.rate * nights : 0;
 
+  const handleDeleteBooking = async (id: string) => {
+    if (confirm("Are you sure you want to delete this booking? This action cannot be undone.")) {
+      deleteBooking.mutate(id);
+    }
+  };
+
+  const handleStatusChange = async (id: string, status: BookingStatus) => {
+    updateStatus.mutate({ id, status });
+  };
+
   const handleCreateBooking = async () => {
     try {
       // 1. Resolve Customer (Booker)
@@ -179,16 +189,6 @@ export default function Bookings() {
         description: error.message || "Unknown error occurred",
         variant: "destructive"
       });
-    }
-  };
-
-  const handleStatusChange = async (bookingId: string, status: BookingStatus) => {
-    await updateStatus.mutateAsync({ id: bookingId, status });
-  };
-
-  const handleDeleteBooking = async (id: string) => {
-    if (confirm("Are you sure you want to delete this booking permanently?")) {
-      await deleteBooking.mutateAsync(id);
     }
   };
 

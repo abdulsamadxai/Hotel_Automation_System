@@ -2,4 +2,22 @@ import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 
-createRoot(document.getElementById("root")!).render(<App />);
+console.log("main.tsx loaded");
+
+try {
+    const rootElement = document.getElementById("root");
+    console.log("Root element:", rootElement);
+
+    if (!rootElement) {
+        throw new Error("Root element not found");
+    }
+
+    const root = createRoot(rootElement);
+    console.log("React root created");
+
+    root.render(<App />);
+    console.log("App rendered");
+} catch (error) {
+    console.error("Failed to mount React app:", error);
+    document.body.innerHTML = `<div style="padding: 20px; color: red;"><h1>Error Loading Application</h1><pre>${error}</pre></div>`;
+}

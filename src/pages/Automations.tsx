@@ -80,8 +80,65 @@ export default function Automations() {
     action_type: "",
   });
 
-  const activeRules = rules.filter((r) => r.is_active).length;
+  const activeRules = rules.filter((r) => r.is_active).length + 5; // +5 for System Rules
   const totalExecutions = rules.reduce((sum, r) => sum + (r.execution_count || 0), 0);
+
+  // Core System Automations (Always Active via SQL Triggers)
+  const SYSTEM_AUTOMATIONS = [
+    {
+      id: "sys-1",
+      name: "Auto Check-In Flow",
+      description: "When Booking is Checked In → Mark Room Occupied & Ensure Invoice Exists",
+      trigger_event: "booking.checked_in",
+      action_type: "update_room_status",
+      is_active: true,
+      execution_count: 0,
+      is_system: true,
+    },
+    {
+      id: "sys-2",
+      name: "Checkout Cleaning Task",
+      description: "When Booking is Checked Out → Mark Room Dirty, Create Task & Notify Staff",
+      trigger_event: "booking.checked_out",
+      action_type: "create_task",
+      is_active: true,
+      execution_count: 0,
+      is_system: true,
+    },
+    {
+      id: "sys-3",
+      name: "Cancellation Cleanup",
+      description: "When Booking Cancelled → Free Room, Cancel Invoice & Remove Tasks",
+      trigger_event: "booking.cancelled",
+      action_type: "update_room_status",
+      is_active: true,
+      execution_count: 0,
+      is_system: true,
+    },
+    {
+      id: "sys-4",
+      name: "Room Ready Workflow",
+      description: "When Housekeeping Task Completed → Mark Room Available",
+      trigger_event: "task.completed",
+      action_type: "update_room_status",
+      is_active: true,
+      execution_count: 0,
+      is_system: true,
+    },
+    {
+      id: "sys-5",
+      name: "New Booking Alert",
+      description: "When Booking Created → Log Activity & Notify Dashboard",
+      trigger_event: "booking.created",
+      action_type: "create_alert",
+      is_active: true,
+      execution_count: 0,
+      is_system: true,
+    },
+  ];
+
+  const allRules = [...SYSTEM_AUTOMATIONS, ...rules];
+
 
   const handleCreateRule = async () => {
     await createAutomation.mutateAsync({
@@ -242,7 +299,7 @@ export default function Automations() {
                 <Clock className="h-6 w-6" />
               </div>
               <div>
-                <p className="text-3xl font-bold">{rules.length}</p>
+                <p className="text-3xl font-bold">{allRules.length}</p>
                 <p className="text-sm text-muted-foreground">Total Rules</p>
               </div>
             </div>
@@ -252,7 +309,7 @@ export default function Automations() {
         {/* Automation Rules */}
         <div className="space-y-4">
           <h2 className="text-lg font-semibold">Automation Rules</h2>
-          {rules.length === 0 ? (
+          {allRules.length === 0 ? (
             <div className="glass-card p-12 text-center">
               <div className="h-16 w-16 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-4">
                 <Zap className="h-8 w-8 text-muted-foreground" />
@@ -268,22 +325,20 @@ export default function Automations() {
             </div>
           ) : (
             <div className="grid gap-4">
-              {rules.map((rule) => (
+              {allRules.map((rule) => (
                 <div
                   key={rule.id}
-                  className={`glass-card p-5 transition-all duration-300 ${
-                    !rule.is_active ? "opacity-60" : ""
-                  }`}
+                  className={`glass-card p-5 transition-all duration-300 ${!rule.is_active ? "opacity-60" : ""
+                    }`}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
                         <div
-                          className={`h-8 w-8 rounded-lg flex items-center justify-center ${
-                            rule.is_active
-                              ? "bg-primary/10 text-primary"
-                              : "bg-muted text-muted-foreground"
-                          }`}
+                          className={`h-8 w-8 rounded-lg flex items-center justify-center ${rule.is_active
+                            ? "bg-primary/10 text-primary"
+                            : "bg-muted text-muted-foreground"
+                            }`}
                         >
                           <Zap className="h-4 w-4" />
                         </div>
@@ -327,8 +382,8 @@ export default function Automations() {
 
                     {/* Controls */}
                     <div className="flex flex-col items-end gap-3">
-                      <Switch 
-                        checked={rule.is_active} 
+                      <Switch
+                        checked={rule.is_active}
                         onCheckedChange={() => handleToggle(rule.id, rule.is_active)}
                         disabled={toggleAutomation.isPending}
                       />
@@ -336,9 +391,9 @@ export default function Automations() {
                         <Button variant="ghost" size="icon" className="h-8 w-8">
                           <Edit className="h-4 w-4" />
                         </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           className="h-8 w-8 text-destructive"
                           onClick={() => setDeleteId(rule.id)}
                         >

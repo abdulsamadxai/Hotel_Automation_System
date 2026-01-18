@@ -25,8 +25,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Clock, CheckCircle2, AlertCircle, Zap, Play, Loader2 } from "lucide-react";
-import { useHousekeepingTasks, useCreateTask, useUpdateTaskStatus, useAssignTask, TaskStatus, TaskType, TaskPriority } from "@/hooks/useHousekeeping";
+import { Plus, Clock, CheckCircle2, AlertCircle, Zap, Play, Loader2, Trash2 } from "lucide-react";
+import { useHousekeepingTasks, useCreateTask, useUpdateTaskStatus, useAssignTask, useDeleteTask, TaskStatus, TaskType, TaskPriority } from "@/hooks/useHousekeeping";
 import { useRealtimeHousekeeping } from "@/hooks/useActivity";
 import { useRooms } from "@/hooks/useRooms";
 import { useStaff } from "@/hooks/useStaff";
@@ -54,6 +54,7 @@ export default function Housekeeping() {
   const createTask = useCreateTask();
   const updateStatus = useUpdateTaskStatus();
   const assignTask = useAssignTask();
+  const deleteTask = useDeleteTask();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -292,9 +293,8 @@ export default function Housekeeping() {
                 {tasks.map((task) => (
                   <TableRow
                     key={task.id}
-                    className={`border-border hover:bg-muted/30 ${
-                      task.status === "overdue" ? "bg-status-error/5" : ""
-                    }`}
+                    className={`border-border hover:bg-muted/30 ${task.status === "overdue" ? "bg-status-error/5" : ""
+                      }`}
                   >
                     <TableCell className="font-mono text-sm">{task.task_number}</TableCell>
                     <TableCell className="font-medium">Room {task.room?.number || "N/A"}</TableCell>
@@ -356,6 +356,18 @@ export default function Housekeeping() {
                             Complete
                           </Button>
                         )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 text-destructive"
+                          onClick={() => {
+                            if (confirm("Delete this task?")) {
+                              deleteTask.mutate(task.id);
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -365,6 +377,6 @@ export default function Housekeeping() {
           )}
         </div>
       </div>
-    </AppLayout>
+    </AppLayout >
   );
 }

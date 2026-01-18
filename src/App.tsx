@@ -34,7 +34,7 @@ const App = () => (
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
-            
+
             {/* Protected routes */}
             <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
             <Route path="/bookings" element={<ProtectedRoute><Bookings /></ProtectedRoute>} />
@@ -42,38 +42,38 @@ const App = () => (
             <Route path="/guests" element={<ProtectedRoute><Guests /></ProtectedRoute>} />
             <Route path="/housekeeping" element={<ProtectedRoute><Housekeeping /></ProtectedRoute>} />
             <Route path="/staff" element={<ProtectedRoute><Staff /></ProtectedRoute>} />
-            
-            {/* Finance - restricted to owner, manager, accountant */}
+
+            {/* Finance - restricted to owner, manager, accountant, reception */}
             <Route path="/billing" element={
-              <ProtectedRoute allowedRoles={['owner', 'manager', 'accountant']}>
+              <ProtectedRoute allowedRoles={['owner', 'manager', 'accountant', 'reception']}>
                 <Billing />
               </ProtectedRoute>
             } />
-            
-            {/* Automations - restricted to owner, manager */}
+
+            {/* Automations - restricted to owner, manager, reception */}
             <Route path="/automations" element={
-              <ProtectedRoute allowedRoles={['owner', 'manager']}>
+              <ProtectedRoute allowedRoles={['owner', 'manager', 'reception']}>
                 <Automations />
               </ProtectedRoute>
             } />
-            
+
             <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
             <Route path="/alerts" element={<ProtectedRoute><Alerts /></ProtectedRoute>} />
-            
-            {/* Logs - restricted to owner, manager */}
+
+            {/* Logs - restricted to owner, manager, reception */}
             <Route path="/logs" element={
-              <ProtectedRoute allowedRoles={['owner', 'manager']}>
+              <ProtectedRoute allowedRoles={['owner', 'manager', 'reception']}>
                 <Logs />
               </ProtectedRoute>
             } />
-            
+
             {/* Settings - restricted to owner, manager */}
             <Route path="/settings" element={
               <ProtectedRoute allowedRoles={['owner', 'manager']}>
                 <Settings />
               </ProtectedRoute>
             } />
-            
+
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

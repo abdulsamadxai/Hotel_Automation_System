@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -26,7 +26,7 @@ export function useActivity(limit: number = 10) {
         .select("*")
         .order("created_at", { ascending: false })
         .limit(limit);
-      
+
       if (error) throw error;
       return data as Activity[];
     },
@@ -131,4 +131,23 @@ export function useRealtimeHousekeeping() {
       supabase.removeChannel(channel);
     };
   }, [queryClient]);
+}
+
+export function useDeleteActivity() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("activity_log")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["activity"] });
+      // toast({ title: "Log entry deleted" });
+    },
+  });
 }

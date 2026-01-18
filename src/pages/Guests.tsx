@@ -20,8 +20,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Search, Star, Ban, User, Users, Loader2, Save } from "lucide-react";
-import { useGuests, useCreateGuest, type Guest, type GuestTag } from "@/hooks/useGuests";
+import { Plus, Search, Star, Ban, User, Users, Loader2, Save, Trash2 } from "lucide-react";
+import { useGuests, useCreateGuest, useDeleteGuest, type Guest, type GuestTag } from "@/hooks/useGuests";
 import { format } from "date-fns";
 
 const tagConfig: Record<GuestTag, { icon: any; color: string }> = {
@@ -33,6 +33,7 @@ const tagConfig: Record<GuestTag, { icon: any; color: string }> = {
 export default function Guests() {
   const { data: guests = [], isLoading } = useGuests();
   const createGuest = useCreateGuest();
+  const deleteGuest = useDeleteGuest();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -196,13 +197,14 @@ export default function Guests() {
                   <TableHead className="text-muted-foreground">Total Spent</TableHead>
                   <TableHead className="text-muted-foreground">Last Stay</TableHead>
                   <TableHead className="text-muted-foreground">Tags</TableHead>
+                  <TableHead className="text-muted-foreground text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredGuests.map((guest) => (
                   <TableRow
                     key={guest.id}
-                    className="border-border hover:bg-muted/30 cursor-pointer"
+                    className="border-border hover:bg-muted/30 group"
                   >
                     <TableCell>
                       <div className="flex items-center gap-3">
@@ -248,6 +250,20 @@ export default function Guests() {
                           );
                         })}
                       </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => {
+                          if (confirm(`Are you sure you want to delete ${guest.name}? This action cannot be undone.`)) {
+                            deleteGuest.mutate(guest.id);
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}

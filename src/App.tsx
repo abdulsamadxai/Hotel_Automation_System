@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -15,6 +16,7 @@ import Housekeeping from "./pages/Housekeeping";
 import Staff from "./pages/Staff";
 import Billing from "./pages/Billing";
 import Automations from "./pages/Automations";
+import Expenses from "./pages/Expenses";
 import Messages from "./pages/Messages";
 import Alerts from "./pages/Alerts";
 import Logs from "./pages/Logs";
@@ -25,60 +27,88 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            {/* Public routes */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
+    <ErrorBoundary>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              {/* Public routes */}
+              <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Signup />} />
 
-            {/* Protected routes */}
-            <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
-            <Route path="/bookings" element={<ProtectedRoute><Bookings /></ProtectedRoute>} />
-            <Route path="/rooms" element={<ProtectedRoute><Rooms /></ProtectedRoute>} />
-            <Route path="/guests" element={<ProtectedRoute><Guests /></ProtectedRoute>} />
-            <Route path="/housekeeping" element={<ProtectedRoute><Housekeeping /></ProtectedRoute>} />
-            <Route path="/staff" element={<ProtectedRoute><Staff /></ProtectedRoute>} />
+              {/* Protected routes */}
+              <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+              <Route path="/bookings" element={
+                <ProtectedRoute allowedRoles={['owner', 'manager', 'super_admin']}>
+                  <Bookings />
+                </ProtectedRoute>
+              } />
+              <Route path="/rooms" element={
+                <ProtectedRoute allowedRoles={['owner', 'manager', 'super_admin']}>
+                  <Rooms />
+                </ProtectedRoute>
+              } />
+              <Route path="/guests" element={
+                <ProtectedRoute allowedRoles={['owner', 'manager', 'super_admin']}>
+                  <Guests />
+                </ProtectedRoute>
+              } />
+              <Route path="/housekeeping" element={<ProtectedRoute><Housekeeping /></ProtectedRoute>} />
+              <Route path="/staff" element={
+                <ProtectedRoute allowedRoles={['owner', 'manager', 'super_admin']}>
+                  <Staff />
+                </ProtectedRoute>
+              } />
 
-            {/* Finance - restricted to owner, manager, accountant, reception */}
-            <Route path="/billing" element={
-              <ProtectedRoute allowedRoles={['owner', 'manager', 'accountant', 'reception']}>
-                <Billing />
-              </ProtectedRoute>
-            } />
+              <Route path="/expenses" element={
+                <ProtectedRoute allowedRoles={['owner', 'super_admin']}>
+                  <Expenses />
+                </ProtectedRoute>
+              } />
 
-            {/* Automations - restricted to owner, manager, reception */}
-            <Route path="/automations" element={
-              <ProtectedRoute allowedRoles={['owner', 'manager', 'reception']}>
-                <Automations />
-              </ProtectedRoute>
-            } />
+              <Route path="/billing" element={
+                <ProtectedRoute allowedRoles={['owner', 'manager', 'super_admin']}>
+                  <Billing />
+                </ProtectedRoute>
+              } />
 
-            <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
-            <Route path="/alerts" element={<ProtectedRoute><Alerts /></ProtectedRoute>} />
+              <Route path="/automations" element={
+                <ProtectedRoute allowedRoles={['super_admin']}>
+                  <Automations />
+                </ProtectedRoute>
+              } />
 
-            {/* Logs - restricted to owner, manager, reception */}
-            <Route path="/logs" element={
-              <ProtectedRoute allowedRoles={['owner', 'manager', 'reception']}>
-                <Logs />
-              </ProtectedRoute>
-            } />
+              <Route path="/messages" element={
+                <ProtectedRoute allowedRoles={['owner', 'manager', 'super_admin']}>
+                  <Messages />
+                </ProtectedRoute>
+              } />
+              <Route path="/alerts" element={
+                <ProtectedRoute allowedRoles={['owner', 'manager', 'super_admin']}>
+                  <Alerts />
+                </ProtectedRoute>
+              } />
 
-            {/* Settings - restricted to owner, manager */}
-            <Route path="/settings" element={
-              <ProtectedRoute allowedRoles={['owner', 'manager']}>
-                <Settings />
-              </ProtectedRoute>
-            } />
+              <Route path="/logs" element={
+                <ProtectedRoute allowedRoles={['owner', 'manager', 'super_admin']}>
+                  <Logs />
+                </ProtectedRoute>
+              } />
 
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>
+              <Route path="/settings" element={
+                <ProtectedRoute allowedRoles={['owner', 'manager', 'super_admin']}>
+                  <Settings />
+                </ProtectedRoute>
+              } />
+
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   </QueryClientProvider>
 );
 

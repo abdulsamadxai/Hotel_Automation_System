@@ -9,13 +9,14 @@ export interface Guest {
   name: string;
   email: string | null;
   phone: string | null;
+  nationality?: string | null;
+  id_number?: string | null;
+  notes: string | null;
   tags: GuestTag[];
   total_stays: number;
   total_spent: number;
-  last_stay_at: string | null;
-  notes: string | null;
+  last_stay_at?: string | null;
   created_at: string;
-  updated_at: string;
 }
 
 export function useGuests() {

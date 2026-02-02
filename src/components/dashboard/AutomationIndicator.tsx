@@ -14,8 +14,9 @@ interface AutomationIndicatorProps {
   rules: AutomationRule[];
 }
 
-export function AutomationIndicator({ rules }: AutomationIndicatorProps) {
-  const activeRules = rules.filter((r) => r.isActive).length;
+export function AutomationIndicator({ rules = [] }: AutomationIndicatorProps) {
+  const safeRules = Array.isArray(rules) ? rules : [];
+  const activeRules = safeRules.filter((r) => r?.isActive).length;
 
   return (
     <div className="glass-card overflow-hidden">
@@ -31,7 +32,7 @@ export function AutomationIndicator({ rules }: AutomationIndicatorProps) {
             <div>
               <h3 className="font-semibold">Automation Engine</h3>
               <p className="text-xs text-muted-foreground">
-                {activeRules} of {rules.length} rules active
+                {activeRules} of {safeRules.length} rules active
               </p>
             </div>
           </div>
@@ -41,19 +42,17 @@ export function AutomationIndicator({ rules }: AutomationIndicatorProps) {
         </div>
       </div>
       <div className="divide-y divide-border max-h-[300px] overflow-y-auto">
-        {rules.map((rule) => (
+        {safeRules.map((rule) => (
           <div
-            key={rule.id}
-            className={`p-3 flex items-center justify-between hover:bg-muted/30 transition-colors ${
-              !rule.isActive ? "opacity-50" : ""
-            }`}
+            key={rule?.id || Math.random()}
+            className={`p-3 flex items-center justify-between hover:bg-muted/30 transition-colors ${!rule?.isActive ? "opacity-50" : ""
+              }`}
           >
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span
-                  className={`h-1.5 w-1.5 rounded-full ${
-                    rule.isActive ? "bg-status-success" : "bg-muted-foreground"
-                  }`}
+                  className={`h-1.5 w-1.5 rounded-full ${rule.isActive ? "bg-status-success" : "bg-muted-foreground"
+                    }`}
                 />
                 <p className="text-sm font-medium truncate">{rule.name}</p>
               </div>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, Outlet } from "react-router-dom";
 import {
   LayoutDashboard,
   CalendarCheck,
@@ -32,6 +32,7 @@ import {
   SidebarHeader,
   SidebarFooter,
   useSidebar,
+  SidebarProvider
 } from "@/components/ui/sidebar";
 import {
   Collapsible,
@@ -39,41 +40,16 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 
-const mainMenuItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Bookings", url: "/bookings", icon: CalendarCheck },
-  { title: "Rooms", url: "/rooms", icon: Bed },
-  { title: "Guests", url: "/guests", icon: Users },
-];
-
-const operationsItems = [
-  { title: "Housekeeping", url: "/housekeeping", icon: ClipboardList },
-  { title: "Staff & Tasks", url: "/staff", icon: Users },
-];
-
-const financeItems = [
-  { title: "Billing", url: "/billing", icon: DollarSign },
-];
-
-const systemItems = [
-  { title: "Automations", url: "/automations", icon: Zap },
-  { title: "Messages", url: "/messages", icon: MessageSquare },
-  { title: "Alerts", url: "/alerts", icon: Bell },
-  { title: "Event Logs", url: "/logs", icon: FileText },
-  { title: "Settings", url: "/settings", icon: Settings },
-];
-
 const roleColors: Record<string, string> = {
+  super_admin: "bg-primary/20 text-primary font-bold border-primary/50",
   owner: "bg-primary/15 text-primary",
   manager: "bg-status-info/15 text-status-info",
-  reception: "bg-status-success/15 text-status-success",
   housekeeping: "bg-status-warning/15 text-status-warning",
-  accountant: "bg-status-pending/15 text-status-pending",
 };
 
 interface MenuGroupProps {
   label: string;
-  items: typeof mainMenuItems;
+  items: any[];
   defaultOpen?: boolean;
 }
 
@@ -96,9 +72,8 @@ function MenuGroup({ label, items, defaultOpen = true }: MenuGroupProps) {
             </span>
             {!isCollapsed && (
               <ChevronDown
-                className={`h-3 w-3 text-sidebar-foreground/40 transition-transform duration-200 ${
-                  isOpen ? "rotate-0" : "-rotate-90"
-                }`}
+                className={`h-3 w-3 text-sidebar-foreground/40 transition-transform duration-200 ${isOpen ? "rotate-0" : "-rotate-90"
+                  }`}
               />
             )}
           </SidebarGroupLabel>
@@ -119,7 +94,7 @@ function MenuGroup({ label, items, defaultOpen = true }: MenuGroupProps) {
                       className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200"
                       activeClassName="bg-primary/10 text-primary border-l-2 border-primary"
                     >
-                      <item.icon className="h-4 w-4 shrink-0" />
+                      {item.iconComp}
                       <span className="truncate">{item.title}</span>
                     </NavLink>
                   </SidebarMenuButton>
@@ -133,6 +108,7 @@ function MenuGroup({ label, items, defaultOpen = true }: MenuGroupProps) {
   );
 }
 
+// Export the sidebar component so AppLayout can use it
 export function AppSidebar() {
   const { state } = useSidebar();
   const { user, role, signOut } = useAuth();
@@ -147,6 +123,36 @@ export function AppSidebar() {
   const getUserInitials = () => {
     if (!user?.email) return '?';
     return user.email.charAt(0).toUpperCase();
+  };
+
+  const mainMenuItems = [
+    { title: "Dashboard", url: "/", icon: LayoutDashboard },
+    { title: "Bookings", url: "/bookings", icon: CalendarCheck },
+    { title: "Rooms", url: "/rooms", icon: Bed },
+    { title: "Guests", url: "/guests", icon: Users },
+  ];
+
+  const operationsItems = [
+    { title: "Housekeeping", url: "/housekeeping", icon: ClipboardList },
+    { title: "Staff & Tasks", url: "/staff", icon: Users },
+  ];
+
+  const financeItems = [
+    ...(role !== 'housekeeping' ? [{ title: "Billing", url: "/billing", icon: DollarSign }] : []),
+    ...(role === 'owner' || role === 'super_admin' ? [{ title: "Expenses", url: "/expenses", icon: FileText }] : []),
+  ].filter(Boolean);
+
+  const systemItems = [
+    ...(role === 'super_admin' ? [{ title: "Automations", url: "/automations", icon: Zap }] : []),
+    ...(role !== 'housekeeping' ? [{ title: "Messages", url: "/messages", icon: MessageSquare }] : []),
+    ...(role !== 'housekeeping' ? [{ title: "Alerts", url: "/alerts", icon: Bell }] : []),
+    ...(role === 'super_admin' ? [{ title: "Event Logs", url: "/logs", icon: FileText }] : []),
+    ...(role === 'owner' || role === 'super_admin' ? [{ title: "Settings", url: "/settings", icon: Settings }] : []),
+  ].filter(Boolean);
+
+  const renderIcon = (Icon: any) => {
+    if (!Icon) return <LayoutDashboard className="h-4 w-4 shrink-0" />;
+    return <Icon className="h-4 w-4 shrink-0" />;
   };
 
   return (
@@ -168,10 +174,31 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent className="px-2">
-        <MenuGroup label="Main" items={mainMenuItems} defaultOpen />
-        <MenuGroup label="Operations" items={operationsItems} />
-        <MenuGroup label="Finance" items={financeItems} />
-        <MenuGroup label="System" items={systemItems} />
+        {role !== 'housekeeping' && (
+          <MenuGroup
+            label="Main"
+            items={mainMenuItems.map(i => ({ ...i, iconComp: renderIcon(i.icon) }))}
+            defaultOpen
+          />
+        )}
+
+        <MenuGroup
+          label="Operations"
+          items={(role === 'housekeeping' ? [operationsItems[0]] : operationsItems).map(i => ({ ...i, iconComp: renderIcon(i.icon) }))}
+        />
+
+        {role !== 'housekeeping' && (
+          <>
+            <MenuGroup
+              label="Finance"
+              items={financeItems.map(i => ({ ...i, iconComp: renderIcon(i.icon) }))}
+            />
+            <MenuGroup
+              label="System"
+              items={systemItems.map(i => ({ ...i, iconComp: renderIcon(i.icon) }))}
+            />
+          </>
+        )}
       </SidebarContent>
 
       <SidebarFooter className="p-4 space-y-3">
@@ -189,7 +216,6 @@ export function AppSidebar() {
               </p>
             </div>
 
-            {/* User info */}
             {user && (
               <div className="glass-card p-3 rounded-lg">
                 <div className="flex items-center gap-3">
@@ -218,7 +244,7 @@ export function AppSidebar() {
             )}
           </>
         )}
-        
+
         {isCollapsed && user && (
           <Button
             variant="ghost"
@@ -234,3 +260,4 @@ export function AppSidebar() {
     </Sidebar>
   );
 }
+

@@ -42,8 +42,8 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
       </div>
       <div className="divide-y divide-border max-h-[400px] overflow-y-auto">
         {activities.map((activity) => {
-          const Icon = iconMap[activity.type];
-          const color = colorMap[activity.type];
+          const Icon = iconMap[activity.type] || AlertCircle;
+          const color = colorMap[activity.type] || "text-muted-foreground bg-muted/10";
           return (
             <div
               key={activity.id}

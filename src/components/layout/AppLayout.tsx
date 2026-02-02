@@ -27,15 +27,20 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   const getInitials = () => {
     if (user?.user_metadata?.full_name) {
-      return user.user_metadata.full_name
-        .split(" ")
-        .map((n: string) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2);
+      try {
+        return user.user_metadata.full_name
+          .split(" ")
+          .filter(Boolean)
+          .map((n: string) => n[0])
+          .join("")
+          .toUpperCase()
+          .slice(0, 2) || "U";
+      } catch (e) {
+        return "U";
+      }
     }
-    if (user?.email) {
-      return user.email.slice(0, 2).toUpperCase();
+    if (user?.role) {
+      return user.role.slice(0, 2).toUpperCase();
     }
     return "U";
   };
@@ -62,9 +67,9 @@ export function AppLayout({ children }: AppLayoutProps) {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <Button 
-                variant="ghost" 
-                size="icon" 
+              <Button
+                variant="ghost"
+                size="icon"
                 className="relative"
                 onClick={() => navigate("/alerts")}
               >
@@ -73,7 +78,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                   <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-status-error" />
                 )}
               </Button>
-              
+
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="h-8 w-8 rounded-full p-0 bg-primary/20 hover:bg-primary/30">

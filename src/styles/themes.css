@@ -1,0 +1,82 @@
+/* Light Theme Variables */
+:root:not(.dark) {
+  /* Base Colors */
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+
+  /* Card */
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+
+  /* Popover */
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 84% 4.9%;
+
+  /* Primary */
+  --primary: 160 84% 39%;
+  --primary-foreground: 0 0% 100%;
+
+  /* Secondary */
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+
+  /* Muted */
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+
+  /* Accent */
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+
+  /* Destructive */
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 0 0% 98%;
+
+  /* Border */
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 160 84% 39%;
+
+  /* Sidebar */
+  --sidebar-background: 0 0% 98%;
+  --sidebar-foreground: 222.2 84% 4.9%;
+  --sidebar-primary: 160 84% 39%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 210 40% 96.1%;
+  --sidebar-accent-foreground: 222.2 47.4% 11.2%;
+  --sidebar-border: 214.3 31.8% 91.4%;
+  --sidebar-ring: 160 84% 39%;
+
+  /* Status Colors */
+  --status-success: 142 76% 36%;
+  --status-warning: 38 92% 50%;
+  --status-error: 0 84% 60%;
+  --status-info: 221 83% 53%;
+  --status-pending: 48 96% 53%;
+
+  /* Booking Status */
+  --booking-confirmed: 142 76% 36%;
+  --booking-pending: 48 96% 53%;
+  --booking-cancelled: 0 84% 60%;
+  --booking-checked-in: 221 83% 53%;
+  --booking-checked-out: 215 20% 65%;
+
+  /* Room Status */
+  --room-available: 142 76% 36%;
+  --room-occupied: 221 83% 53%;
+  --room-dirty: 38 92% 50%;
+  --room-cleaning: 48 96% 53%;
+  --room-maintenance: 0 84% 60%;
+}
+
+/* Light theme specific adjustments */
+:root:not(.dark) .glass-card {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(10px);
+}
+
+:root:not(.dark) .glass-sidebar {
+  background: rgba(255, 255, 255, 0.95);
+  border-right: 1px solid rgba(0, 0, 0, 0.1);
+}

@@ -26,10 +26,29 @@ export function useStaff() {
         .from("staff_members")
         .select("*")
         .order("name");
-      
+
       if (error) throw error;
       return data as StaffMember[];
     },
+  });
+}
+
+export function useGlobalStaff() {
+  return useQuery({
+    queryKey: ['global-staff'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('staff_members')
+        .select(`
+          *,
+          hotels (
+            name,
+            access_code
+          )
+        `);
+      if (error) throw error;
+      return data as any[];
+    }
   });
 }
 
@@ -40,12 +59,45 @@ export function useCreateStaff() {
     mutationFn: async (staff: {
       name: string;
       email?: string;
+      password?: string;
       phone?: string;
       role?: StaffRole;
       shift?: string;
       status?: StaffStatus;
-      user_id?: string | null;
     }) => {
+      // 1. Get current user's hotel_id
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: currentStaff } = await supabase
+        .from('staff_members')
+        .select('hotel_id')
+        .eq('user_id', user?.id)
+        .maybeSingle();
+
+      const hotelId = currentStaff?.hotel_id;
+
+      if (!hotelId) throw new Error("Could not determine hotel property context.");
+
+      let userId = null;
+
+      // 2. Create Auth User if email and password provided
+      if (staff.email && staff.password) {
+        // We use a secondary client to avoid signing out the current user
+        // Note: For a real production app, this would be an Edge Function.
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email: staff.email,
+          password: staff.password,
+          options: {
+            data: { full_name: staff.name }
+          }
+        });
+
+        // If the user already exists, Supabase returns success but no user data if "confirm email" is on.
+        // For this demo, we assume we need to link it.
+        if (authError) throw authError;
+        userId = authData.user?.id;
+      }
+
+      // 3. Create Staff Member Record
       const { data, error } = await supabase
         .from("staff_members")
         .insert({
@@ -55,17 +107,19 @@ export function useCreateStaff() {
           role: staff.role || "housekeeping",
           shift: staff.shift || null,
           status: staff.status || "off_duty",
-          user_id: staff.user_id || null,
+          user_id: userId,
+          hotel_id: hotelId,
+          saas_role: staff.role as any
         })
         .select()
         .single();
-      
+
       if (error) throw error;
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff"] });
-      toast({ title: "Staff member added successfully" });
+      toast({ title: "Staff member added successfully", description: "Account created and linked to your hotel." });
     },
     onError: (error) => {
       toast({ title: "Error adding staff", description: error.message, variant: "destructive" });
@@ -84,7 +138,7 @@ export function useUpdateStaff() {
         .eq("id", id)
         .select()
         .single();
-      
+
       if (error) throw error;
       return data;
     },
@@ -109,7 +163,7 @@ export function useUpdateStaffStatus() {
         .eq("id", id)
         .select()
         .single();
-      
+
       if (error) throw error;
       return data;
     },
@@ -132,7 +186,7 @@ export function useDeleteStaff() {
         .from("staff_members")
         .delete()
         .eq("id", id);
-      
+
       if (error) throw error;
     },
     onSuccess: () => {

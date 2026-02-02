@@ -21,10 +21,13 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Plus, Search, Star, Ban, User, Users, Loader2, Save, Trash2 } from "lucide-react";
-import { useGuests, useCreateGuest, useDeleteGuest, type Guest, type GuestTag } from "@/hooks/useGuests";
+import { useGuests, useCreateGuest, useUpdateGuest, useDeleteGuest, type Guest, type GuestTag } from "@/hooks/useGuests";
 import { format } from "date-fns";
+import { useCurrency } from "@/contexts/AppSettingsContext";
+import { formatAndConvert } from "@/utils/currency";
 
-const tagConfig: Record<GuestTag, { icon: any; color: string }> = {
+
+const tagConfig: Record<GuestTag, { icon: React.ElementType; color: string }> = {
   vip: { icon: Star, color: "bg-status-warning/15 text-status-warning border-status-warning/30" },
   regular: { icon: User, color: "bg-status-info/15 text-status-info border-status-info/30" },
   blocked: { icon: Ban, color: "bg-status-error/15 text-status-error border-status-error/30" },
@@ -33,29 +36,86 @@ const tagConfig: Record<GuestTag, { icon: any; color: string }> = {
 export default function Guests() {
   const { data: guests = [], isLoading } = useGuests();
   const createGuest = useCreateGuest();
+  const updateGuest = useUpdateGuest();
   const deleteGuest = useDeleteGuest();
+  const { currency } = useCurrency();
+
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingGuest, setEditingGuest] = useState<Guest | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     phone: "",
+    nationality: "",
+    id_number: "",
     notes: "",
     tags: ["regular"] as GuestTag[]
   });
 
-  const handleCreateGuest = async () => {
-    await createGuest.mutateAsync({
-      name: formData.name,
+  const handleOpenDialog = (guest?: Guest) => {
+    if (guest) {
+      setEditingGuest(guest);
+      setFormData({
+        name: guest.name,
+        email: guest.email || "",
+        phone: guest.phone || "",
+        nationality: guest.nationality || "",
+        id_number: guest.id_number || "",
+        notes: guest.notes || "",
+        tags: guest.tags
+      });
+    } else {
+      setEditingGuest(null);
+      setFormData({
+        name: "",
+        email: "",
+        phone: "",
+        nationality: "",
+        id_number: "",
+        notes: "",
+        tags: ["regular"]
+      });
+    }
+    setIsDialogOpen(true);
+  };
+
+  const handleSaveGuest = async () => {
+    const payload = {
+      ...formData,
       email: formData.email || null,
       phone: formData.phone || null,
+      nationality: formData.nationality || null,
+      id_number: formData.id_number || null,
       notes: formData.notes || null,
-      tags: formData.tags
-    });
+    };
+
+    if (editingGuest) {
+      await updateGuest.mutateAsync({
+        id: editingGuest.id,
+        ...payload
+      });
+    } else {
+      await createGuest.mutateAsync({
+        ...payload,
+        tags: formData.tags
+      });
+    }
     setIsDialogOpen(false);
-    setFormData({ name: "", email: "", phone: "", notes: "", tags: ["regular"] });
+    setEditingGuest(null);
+    setFormData({
+      name: "",
+      email: "",
+      phone: "",
+      nationality: "",
+      id_number: "",
+      notes: "",
+      tags: ["regular"]
+    });
   };
+
 
   const filteredGuests = guests.filter(g =>
     g.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -87,16 +147,16 @@ export default function Guests() {
               Manage guest profiles and stay history
             </p>
           </div>
+          <div className="flex items-center gap-2">
+            <Button className="gap-2" onClick={() => handleOpenDialog()}>
+              <Plus className="h-4 w-4" />
+              Add Guest
+            </Button>
+          </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2">
-                <Plus className="h-4 w-4" />
-                Add Guest
-              </Button>
-            </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Add New Guest</DialogTitle>
+                <DialogTitle>{editingGuest ? "Edit Guest Profile" : "Add New Guest"}</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
@@ -126,6 +186,24 @@ export default function Guests() {
                     />
                   </div>
                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Nationality</Label>
+                    <Input
+                      placeholder="e.g. American"
+                      value={formData.nationality}
+                      onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>ID / Passport Number</Label>
+                    <Input
+                      placeholder="e.g. AB123456"
+                      value={formData.id_number}
+                      onChange={(e) => setFormData({ ...formData, id_number: e.target.value })}
+                    />
+                  </div>
+                </div>
                 <div className="space-y-2">
                   <Label>Notes</Label>
                   <Textarea
@@ -136,10 +214,10 @@ export default function Guests() {
                 </div>
                 <Button
                   className="w-full mt-2"
-                  onClick={handleCreateGuest}
-                  disabled={!formData.name || createGuest.isPending}
+                  onClick={handleSaveGuest}
+                  disabled={!formData.name || createGuest.isPending || updateGuest.isPending}
                 >
-                  {createGuest.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Guest Profile"}
+                  {createGuest.isPending || updateGuest.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingGuest ? "Update Profile" : "Save Guest Profile")}
                 </Button>
               </div>
             </DialogContent>
@@ -225,10 +303,15 @@ export default function Guests() {
                     <TableCell>
                       <p className="text-sm">{guest.email || "-"}</p>
                       <p className="text-xs text-muted-foreground">{guest.phone || "-"}</p>
+                      {(guest.nationality || guest.id_number) && (
+                        <p className="text-[10px] text-primary/70 mt-1">
+                          {guest.nationality} {guest.id_number ? `(${guest.id_number})` : ''}
+                        </p>
+                      )}
                     </TableCell>
                     <TableCell className="font-medium">{guest.total_stays}</TableCell>
                     <TableCell className="font-medium">
-                      ${guest.total_spent.toLocaleString()}
+                      {formatAndConvert(guest.total_spent, currency)}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {guest.last_stay_at ? format(new Date(guest.last_stay_at), "MMM d, yyyy") : "-"}
@@ -252,18 +335,28 @@ export default function Guests() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => {
-                          if (confirm(`Are you sure you want to delete ${guest.name}? This action cannot be undone.`)) {
-                            deleteGuest.mutate(guest.id);
-                          }
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-primary hover:text-primary hover:bg-primary/10"
+                          onClick={() => handleOpenDialog(guest)}
+                        >
+                          <Save className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => {
+                            if (confirm(`Are you sure you want to delete ${guest.name}? This action cannot be undone.`)) {
+                              deleteGuest.mutate(guest.id);
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -272,6 +365,6 @@ export default function Guests() {
           )}
         </div>
       </div>
-    </AppLayout>
+    </AppLayout >
   );
 }

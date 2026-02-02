@@ -18,7 +18,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -34,13 +33,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Plus, Search, MoreHorizontal, LogIn, LogOut, XCircle, FileText, Loader2, DollarSign, Trash2 } from "lucide-react";
-import { useBookings, useCreateBooking, useUpdateBookingStatus, useDeleteBooking, BookingStatus } from "@/hooks/useBookings";
+import { useBookings, useCreateBooking, useUpdateBooking, useUpdateBookingStatus, useDeleteBooking, BookingStatus } from "@/hooks/useBookings";
 import { useRealtimeBookings } from "@/hooks/useActivity";
 import { useRooms } from "@/hooks/useRooms";
 import { useGuests, useCreateGuest } from "@/hooks/useGuests";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { useCurrency } from "@/contexts/AppSettingsContext";
+import { formatAndConvert } from "@/utils/currency";
 
 export default function Bookings() {
   useRealtimeBookings();
@@ -48,11 +49,14 @@ export default function Bookings() {
   const { data: rooms = [] } = useRooms();
   const { data: guests = [] } = useGuests();
   const createBooking = useCreateBooking();
-  const deleteBooking = useDeleteBooking(); // Add this
+  const updateBooking = useUpdateBooking();
+  const deleteBooking = useDeleteBooking();
   const createGuest = useCreateGuest();
   const updateStatus = useUpdateBookingStatus();
+  const { currency } = useCurrency();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingBooking, setEditingBooking] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [paymentMode, setPaymentMode] = useState<"pay_now" | "deposit" | "pay_later">("pay_later");
   const [formData, setFormData] = useState({
@@ -63,11 +67,33 @@ export default function Bookings() {
     checkIn: "",
     checkOut: "",
     depositAmount: "",
+    guestType: "national" as "national" | "international",
   });
 
-  const availableRooms = rooms.filter((r) => r.status === "available");
+  const handleOpenDialog = (booking?: any) => {
+    if (booking) {
+      setEditingBooking(booking);
+      setFormData({
+        guestName: booking.guest?.name || "",
+        guestEmail: booking.guest?.email || "",
+        guestPhone: booking.guest?.phone || "",
+        roomId: booking.room_id || "",
+        checkIn: booking.check_in,
+        checkOut: booking.check_out,
+        depositAmount: booking.deposit_amount?.toString() || "",
+        guestType: booking.guest_type || "national",
+      });
+      setPaymentMode(booking.payment_status === "paid" ? "pay_now" : (booking.deposit_amount > 0 ? "deposit" : "pay_later"));
+    } else {
+      setEditingBooking(null);
+      setFormData({ guestName: "", guestEmail: "", guestPhone: "", roomId: "", checkIn: "", checkOut: "", depositAmount: "", guestType: "national" });
+      setPaymentMode("pay_later");
+    }
+    setIsDialogOpen(true);
+  };
 
-  // Calculate stats
+  const availableRooms = rooms.filter((r) => r.status === "available" || (editingBooking && r.id === editingBooking.room_id));
+
   const selectedRoom = rooms.find(r => r.id === formData.roomId);
   const nights = formData.checkIn && formData.checkOut
     ? Math.max(1, Math.ceil((new Date(formData.checkOut).getTime() - new Date(formData.checkIn).getTime()) / (1000 * 60 * 60 * 24)))
@@ -84,108 +110,93 @@ export default function Bookings() {
     updateStatus.mutate({ id, status });
   };
 
-  const handleCreateBooking = async () => {
+  const handleSaveBooking = async () => {
     try {
-      // 1. Resolve Customer (Booker)
-      let customerId = "";
-
-      // Search for existing customer by phone or email
-      const { data: existingCustomers } = await supabase
-        .from("guests")
-        .select("id")
-        .or(`phone.eq.${formData.guestPhone},email.eq.${formData.guestEmail}`)
-        .limit(1);
-
-      if (existingCustomers && existingCustomers.length > 0) {
-        customerId = existingCustomers[0].id;
-        // Optionally update other details if provided?
-      } else {
-        // Create NEW Customer
-        const newCustomer = await createGuest.mutateAsync({
-          name: formData.guestName,
-          email: formData.guestEmail || null,
-          phone: formData.guestPhone || null,
-          tags: ["regular"],
-          notes: null,
+      if (editingBooking) {
+        await updateBooking.mutateAsync({
+          id: editingBooking.id,
+          check_in: formData.checkIn,
+          check_out: formData.checkOut,
+          room_id: formData.roomId,
+          total_amount: totalAmount,
         });
-        customerId = newCustomer.id;
-      }
-
-      // 2. Determine Payment Info
-      let deposit = 0;
-      let paymentStatus = "pending";
-
-      if (paymentMode === "pay_now") {
-        deposit = totalAmount; // Full payment
-        paymentStatus = "paid";
-      } else if (paymentMode === "deposit") {
-        deposit = parseFloat(formData.depositAmount) || 0;
-        paymentStatus = "partially_paid";
-      }
-
-      // 3. Create Booking Linked to Customer
-      const booking = await createBooking.mutateAsync({
-        guest_id: customerId,
-        room_id: formData.roomId,
-        check_in: formData.checkIn,
-        check_out: formData.checkOut,
-        total_amount: totalAmount,
-        status: "confirmed", // Always confirmed initially
-        payment_status: paymentStatus,
-        deposit_amount: deposit
-      });
-
-      // 4. Create Occupants (Guests)
-      // Note: We need the booking_occupants table for this. 
-      // For now, if the table doesn't exist, we might skip or store in metadata?
-      // Since we can't run the migration, let's try to insert if we assume the user runs the SQL.
-      // Or we just rely on the 'Customer' field being the primary contact.
-      // We will add logic here to insert occupants IF the user provided them (we need to add the UI for it first).
-
-      // 5. Create INVOICE
-      const { data: invoiceNum } = await supabase.rpc("generate_invoice_number");
-
-      let invoiceStatus = "pending";
-      let amountPaid = 0;
-
-      if (paymentMode === "pay_now") {
-        invoiceStatus = "paid";
-        amountPaid = totalAmount;
-      } else if (paymentMode === "deposit") {
-        invoiceStatus = "pending"; // Visual 'Partial' handled by billing
-        amountPaid = deposit;
       } else {
-        invoiceStatus = "pending";
-        amountPaid = 0;
-      }
+        let customerId = "";
+        // @ts-ignore
+        const { data: existingCustomers } = await supabase
+          .from("guests")
+          .select("id")
+          .or(`phone.eq.${formData.guestPhone},email.eq.${formData.guestEmail}`)
+          .limit(1);
 
-      await supabase.from("invoices").insert({
-        invoice_number: invoiceNum,
-        booking_id: booking.id,
-        guest_id: customerId, // Invoice linked to Customer
-        amount: totalAmount,
-        amount_paid: amountPaid,
-        status: invoiceStatus === "paid" ? "paid" : "pending",
-        paid_at: amountPaid > 0 ? new Date().toISOString() : null,
-        payment_method: amountPaid > 0 ? "cash" : null,
-        notes: `Booking Charge (${nights} nights). Mode: ${paymentMode}`,
-        line_items: [{
-          description: `Room Charge (${selectedRoom?.type} - ${nights} nights)`,
+        if (existingCustomers && existingCustomers.length > 0) {
+          customerId = existingCustomers[0].id;
+        } else {
+          const newCustomer = await createGuest.mutateAsync({
+            name: formData.guestName,
+            email: formData.guestEmail || null,
+            phone: formData.guestPhone || null,
+            tags: ["regular"],
+            notes: null,
+          });
+          customerId = newCustomer.id;
+        }
+
+        let deposit = 0;
+        let paymentStatus = "pending";
+
+        if (paymentMode === "pay_now") {
+          deposit = totalAmount;
+          paymentStatus = "paid";
+        } else if (paymentMode === "deposit") {
+          deposit = parseFloat(formData.depositAmount) || 0;
+          paymentStatus = "partially_paid";
+        }
+
+        const booking = await createBooking.mutateAsync({
+          guest_id: customerId,
+          room_id: formData.roomId,
+          check_in: formData.checkIn,
+          check_out: formData.checkOut,
+          total_amount: totalAmount,
+          status: "confirmed",
+          guest_type: formData.guestType,
+          payment_status: paymentStatus,
+          deposit_amount: deposit
+        });
+
+        const invoiceNum = `INV-${Date.now()}`;
+        let amountPaid = paymentMode === "pay_now" ? totalAmount : (paymentMode === "deposit" ? deposit : 0);
+
+        // @ts-ignore
+        await supabase.from("invoices").insert({
+          invoice_number: invoiceNum,
+          booking_id: booking.id,
+          guest_id: customerId,
           amount: totalAmount,
-          quantity: 1,
-          type: "charge"
-        }]
-      });
-
+          amount_paid: amountPaid,
+          status: paymentMode === "pay_now" ? "paid" : "pending",
+          paid_at: amountPaid > 0 ? new Date().toISOString() : null,
+          payment_method: amountPaid > 0 ? "cash" : null,
+          notes: `Booking Charge (${nights} nights). Mode: ${paymentMode}`,
+          line_items: [{
+            description: `Room Charge (${selectedRoom?.type} - ${nights} nights)`,
+            amount: totalAmount,
+            quantity: 1,
+            type: "charge"
+          }]
+        });
+      }
 
       setIsDialogOpen(false);
-      setFormData({ guestName: "", guestEmail: "", guestPhone: "", roomId: "", checkIn: "", checkOut: "", depositAmount: "" });
-      toast({ title: "Booking created successfully" });
+      setEditingBooking(null);
+      setFormData({ guestName: "", guestEmail: "", guestPhone: "", roomId: "", checkIn: "", checkOut: "", depositAmount: "", guestType: "national" });
+      toast({ title: editingBooking ? "Booking updated successfully" : "Booking created successfully" });
 
-    } catch (error) {
-      console.error("Booking creation error:", error);
+    } catch (error: any) {
+      console.error("Booking operation error:", error);
       toast({
-        title: "Failed to create booking",
+        title: "Failed to process booking",
         description: error.message || "Unknown error occurred",
         variant: "destructive"
       });
@@ -229,7 +240,6 @@ export default function Bookings() {
   return (
     <AppLayout>
       <div className="space-y-6 animate-fade-in">
-        {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Bookings</h1>
@@ -237,27 +247,29 @@ export default function Bookings() {
               Manage reservations and track booking lifecycle
             </p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2">
-                <Plus className="h-4 w-4" />
-                New Booking
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-xl">
-              <DialogHeader>
-                <DialogTitle>Create New Booking</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 py-4 max-h-[70vh] overflow-y-auto">
-                <div className="space-y-2">
-                  <Label>Customer Name (Booker) *</Label>
-                  <Input
-                    placeholder="John Smith"
-                    value={formData.guestName}
-                    onChange={(e) => setFormData({ ...formData, guestName: e.target.value })}
-                  />
-                  <p className="text-xs text-muted-foreground">This creates a CRM entry or reuses existing if phone matches.</p>
-                </div>
+          <Button className="gap-2" onClick={() => handleOpenDialog()}>
+            <Plus className="h-4 w-4" />
+            New Booking
+          </Button>
+        </div>
+
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent className="max-w-xl">
+            <DialogHeader>
+              <DialogTitle>{editingBooking ? "Edit Booking" : "Create New Booking"}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4 max-h-[70vh] overflow-y-auto">
+              <div className="space-y-2">
+                <Label>Customer Name (Booker) *</Label>
+                <Input
+                  placeholder="John Smith"
+                  value={formData.guestName}
+                  onChange={(e) => setFormData({ ...formData, guestName: e.target.value })}
+                  disabled={!!editingBooking}
+                />
+                {!editingBooking && <p className="text-xs text-muted-foreground">This creates a CRM entry or reuses existing if phone matches.</p>}
+              </div>
+              {!editingBooking && (
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Email</Label>
@@ -277,103 +289,121 @@ export default function Bookings() {
                     />
                   </div>
                 </div>
+              )}
 
-                <div className="border-t pt-4 mt-2">
-                  <h3 className="font-semibold mb-3">Room & Dates</h3>
-                  <div className="space-y-2 mb-3">
-                    <Label>Select Room *</Label>
-                    <Select
-                      value={formData.roomId}
-                      onValueChange={(v) => setFormData({ ...formData, roomId: v })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select room" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableRooms.map((room) => (
-                          <SelectItem key={room.id} value={room.id}>
-                            Room {room.number} - {room.type} (${room.rate}/night)
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+              <div className="space-y-3 pt-2">
+                <Label>Guest Classification *</Label>
+                <RadioGroup
+                  value={formData.guestType}
+                  onValueChange={(v: any) => setFormData({ ...formData, guestType: v })}
+                  className="flex gap-4"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="national" id="national" />
+                    <Label htmlFor="national">National (Local)</Label>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Check-in *</Label>
-                      <Input
-                        type="date"
-                        value={formData.checkIn}
-                        onChange={(e) => setFormData({ ...formData, checkIn: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Check-out *</Label>
-                      <Input
-                        type="date"
-                        value={formData.checkOut}
-                        onChange={(e) => setFormData({ ...formData, checkOut: e.target.value })}
-                      />
-                    </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="international" id="international" />
+                    <Label htmlFor="international">International (VIP)</Label>
+                  </div>
+                </RadioGroup>
+                <p className="text-xs text-muted-foreground">International guests are automatically classified as VIP.</p>
+              </div>
+
+              <div className="border-t pt-4 mt-2">
+                <h3 className="font-semibold mb-3">Room & Dates</h3>
+                <div className="space-y-2 mb-3">
+                  <Label>Select Room *</Label>
+                  <Select
+                    value={formData.roomId}
+                    onValueChange={(v) => setFormData({ ...formData, roomId: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select room" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableRooms.map((room) => (
+                        <SelectItem key={room.id} value={room.id}>
+                          Room {room.number} - {room.type} ({formatAndConvert(room.rate, currency)}/night)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Check-in *</Label>
+                    <Input
+                      type="date"
+                      value={formData.checkIn}
+                      onChange={(e) => setFormData({ ...formData, checkIn: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Check-out *</Label>
+                    <Input
+                      type="date"
+                      value={formData.checkOut}
+                      onChange={(e) => setFormData({ ...formData, checkOut: e.target.value })}
+                    />
                   </div>
                 </div>
-
-                {totalAmount > 0 && (
-                  <div className="bg-muted/30 p-3 rounded-md border border-border">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-muted-foreground">{nights} nights x ${selectedRoom?.rate}</span>
-                      <span className="font-bold text-lg">${totalAmount}</span>
-                    </div>
-
-                    <div className="space-y-3 pt-2 border-t border-border">
-                      <Label>Payment Mode</Label>
-                      <RadioGroup value={paymentMode} onValueChange={(v: any) => setPaymentMode(v)} className="flex flex-col gap-2">
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="pay_later" id="later" />
-                          <Label htmlFor="later">Pay at Checkout</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="pay_now" id="full" />
-                          <Label htmlFor="full">Full Pre-payment (${totalAmount})</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="deposit" id="deposit" />
-                          <Label htmlFor="deposit">Partial Deposit</Label>
-                        </div>
-                      </RadioGroup>
-                    </div>
-
-                    {paymentMode === "deposit" && (
-                      <div className="mt-3">
-                        <Label>Deposit Amount</Label>
-                        <div className="relative mt-1">
-                          <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input
-                            type="number"
-                            className="pl-8"
-                            placeholder="50.00"
-                            value={formData.depositAmount}
-                            onChange={(e) => setFormData({ ...formData, depositAmount: e.target.value })}
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <Button
-                  onClick={handleCreateBooking}
-                  disabled={createBooking.isPending || !formData.guestName || !formData.roomId || !formData.checkIn || !formData.checkOut}
-                  className="w-full mt-2"
-                >
-                  {createBooking.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : `Confirm Booking ($${paymentMode === "pay_now" ? totalAmount : (paymentMode === "deposit" ? formData.depositAmount || 0 : 0)} Paid)`}
-                </Button>
               </div>
-            </DialogContent>
-          </Dialog>
-        </div>
 
-        {/* Filters */}
+              {totalAmount > 0 && !editingBooking && (
+                <div className="bg-muted/30 p-3 rounded-md border border-border">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-muted-foreground">{nights} nights x {formatAndConvert(selectedRoom?.rate || 0, currency)}</span>
+                    <span className="font-bold text-lg">{formatAndConvert(totalAmount, currency)}</span>
+                  </div>
+
+                  <div className="space-y-3 pt-2 border-t border-border">
+                    <Label>Payment Mode</Label>
+                    <RadioGroup value={paymentMode} onValueChange={(v: any) => setPaymentMode(v)} className="flex flex-col gap-2">
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="pay_later" id="later" />
+                        <Label htmlFor="later">Pay at Checkout</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="pay_now" id="full" />
+                        <Label htmlFor="full">Full Pre-payment ({formatAndConvert(totalAmount, currency)})</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="deposit" id="deposit" />
+                        <Label htmlFor="deposit">Partial Deposit</Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+
+                  {paymentMode === "deposit" && (
+                    <div className="mt-3">
+                      <Label>Deposit Amount</Label>
+                      <div className="relative mt-1">
+                        <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          type="number"
+                          className="pl-8"
+                          placeholder="50.00"
+                          value={formData.depositAmount}
+                          onChange={(e) => setFormData({ ...formData, depositAmount: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <Button
+                onClick={handleSaveBooking}
+                disabled={createBooking.isPending || updateBooking.isPending || !formData.guestName || !formData.roomId || !formData.checkIn || !formData.checkOut}
+                className="w-full mt-2"
+              >
+                {createBooking.isPending || updateBooking.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingBooking ? "Update Booking" : `Confirm Booking (${formatAndConvert(paymentMode === "pay_now" ? totalAmount : (paymentMode === "deposit" ? parseFloat(formData.depositAmount) || 0 : 0), currency)} Paid)`)}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         <div className="glass-card p-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -386,7 +416,6 @@ export default function Bookings() {
           </div>
         </div>
 
-        {/* Status Summary */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {[
             { status: "confirmed" as const, count: statusCounts["confirmed"] || 0 },
@@ -405,7 +434,6 @@ export default function Bookings() {
           ))}
         </div>
 
-        {/* Bookings Table */}
         <div className="glass-card overflow-hidden">
           {filteredBookings.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
@@ -435,7 +463,19 @@ export default function Bookings() {
                 {filteredBookings.map((booking) => (
                   <TableRow key={booking.id} className="border-border hover:bg-muted/30">
                     <TableCell className="font-mono text-sm">{booking.booking_number}</TableCell>
-                    <TableCell className="font-medium">{booking.guest?.name || "N/A"}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="font-medium flex items-center gap-2">
+                          {booking.guest?.name || "N/A"}
+                          {booking.guest?.tags?.includes('vip') && (
+                            <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider border border-amber-200">
+                              VIP
+                            </span>
+                          )}
+                        </span>
+                        <span className="text-xs text-muted-foreground capitalize">{booking.guest_type}</span>
+                      </div>
+                    </TableCell>
                     <TableCell>Room {booking.room?.number || "N/A"}</TableCell>
                     <TableCell>{format(new Date(booking.check_in), "MMM dd, yyyy")}</TableCell>
                     <TableCell>{format(new Date(booking.check_out), "MMM dd, yyyy")}</TableCell>
@@ -443,7 +483,7 @@ export default function Bookings() {
                       <StatusBadge status={mapStatus(booking.status)} />
                     </TableCell>
                     <TableCell className="text-right font-medium">
-                      ${Number(booking.total_amount).toLocaleString()}
+                      {formatAndConvert(Number(booking.total_amount), currency)}
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
@@ -453,6 +493,13 @@ export default function Bookings() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            className="gap-2"
+                            onClick={() => handleOpenDialog(booking)}
+                          >
+                            <FileText className="h-4 w-4" />
+                            Edit Details
+                          </DropdownMenuItem>
                           {booking.status === "confirmed" && (
                             <DropdownMenuItem
                               className="gap-2"

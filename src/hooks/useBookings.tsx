@@ -9,6 +9,7 @@ export interface Booking {
   booking_number: string;
   guest_id: string | null;
   room_id: string | null;
+  guest_type: "national" | "international";
   check_in: string;
   check_out: string;
   status: BookingStatus;
@@ -51,6 +52,7 @@ export function useCreateBooking() {
     mutationFn: async (booking: {
       guest_id: string;
       room_id: string;
+      guest_type: "national" | "international";
       check_in: string;
       check_out: string;
       total_amount: number;
@@ -115,9 +117,56 @@ export function useUpdateBookingStatus() {
         cancelled: "Booking cancelled",
       };
 
+      // AUTOMATION: If checked out, update room and create task
+      if (data.status === 'checked_out' && data.room_id) {
+        // 1. Update Room Status to Dirty
+        supabase.from('rooms').update({ status: 'dirty' }).eq('id', data.room_id).then(() => {
+          queryClient.invalidateQueries({ queryKey: ["rooms"] });
+        });
+
+        // 2. Create Housekeeping Task
+        supabase.from('housekeeping_tasks').insert({
+          room_id: data.room_id,
+          status: 'pending',
+          type: 'checkout_clean',
+          priority: 'medium',
+          description: `Checkout cleaning for room ${data.room_id}`
+        }).then(() => {
+          queryClient.invalidateQueries({ queryKey: ["housekeeping"] });
+        });
+      }
+
       toast({ title: statusMessages[data.status as BookingStatus] });
+
     },
     onError: (error) => {
+      toast({ title: "Error updating booking", description: error.message, variant: "destructive" });
+    },
+  });
+}
+
+export function useUpdateBooking() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: { id: string;[key: string]: any }) => {
+      const { data, error } = await supabase
+        .from("bookings")
+        .update(updates)
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["rooms"] });
+      queryClient.invalidateQueries({ queryKey: ["activity"] });
+      toast({ title: "Booking updated successfully" });
+    },
+    onError: (error: any) => {
       toast({ title: "Error updating booking", description: error.message, variant: "destructive" });
     },
   });

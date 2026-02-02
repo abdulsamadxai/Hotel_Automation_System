@@ -21,13 +21,15 @@ export function RoomStatusGrid({ rooms }: RoomStatusGridProps) {
     return acc;
   }, {} as Record<number, Room[]>);
 
-  const statusColors: Record<Room["status"], string> = {
+  const statusColors: Record<string, string> = {
     available: "border-room-available bg-room-available/10 hover:bg-room-available/20",
     occupied: "border-room-occupied bg-room-occupied/10 hover:bg-room-occupied/20",
     dirty: "border-room-dirty bg-room-dirty/10 hover:bg-room-dirty/20",
     cleaning: "border-room-cleaning bg-room-cleaning/10 hover:bg-room-cleaning/20",
     maintenance: "border-room-maintenance bg-room-maintenance/10 hover:bg-room-maintenance/20",
   };
+
+  const getStatusColor = (status: string) => statusColors[status] || "border-muted bg-muted/10";
 
   return (
     <div className="glass-card overflow-hidden">
@@ -53,7 +55,7 @@ export function RoomStatusGrid({ rooms }: RoomStatusGridProps) {
                 {floorRooms.map((room) => (
                   <button
                     key={room.id}
-                    className={`p-2 rounded-lg border text-center transition-all duration-200 ${statusColors[room.status]}`}
+                    className={`p-2 rounded-lg border text-center transition-all duration-200 ${getStatusColor(room.status)}`}
                   >
                     <p className="text-sm font-bold">{room.number}</p>
                     <p className="text-[10px] text-muted-foreground truncate">

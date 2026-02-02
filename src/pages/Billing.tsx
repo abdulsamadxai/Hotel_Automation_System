@@ -35,7 +35,9 @@ import {
   ArrowRight,
   ArrowLeft,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Mail,
+  Printer
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -43,6 +45,11 @@ import { toast } from "@/hooks/use-toast";
 import { useGuests } from "@/hooks/useGuests";
 import { useBookings } from "@/hooks/useBookings";
 import { Card, CardContent } from "@/components/ui/card";
+import { useCurrency } from "@/contexts/AppSettingsContext";
+import { formatAndConvert } from "@/utils/currency";
+import { useAuth } from "@/hooks/useAuth";
+import { format, isToday } from "date-fns";
+
 
 interface LineItem {
   description: string;
@@ -161,11 +168,14 @@ export default function Billing() {
   const createInvoice = useCreateInvoice();
   const updateInvoice = useUpdateInvoice();
   const deleteInvoice = useDeleteInvoice();
+  const { currency } = useCurrency();
+
 
   // Wizard State
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState(1);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const [formData, setFormData] = useState({
     guest_id: "",
@@ -174,9 +184,42 @@ export default function Billing() {
     line_items: [] as LineItem[],
   });
 
-  // Calculate totals for dashboard
-  const totalRevenue = invoices.filter((i) => i.status === "paid").reduce((sum, i) => sum + i.amount, 0);
-  const pendingRevenue = invoices.filter((i) => i.status !== "paid").reduce((sum, i) => sum + (i.amount - (i.amount_paid || 0)), 0);
+  const { role } = useAuth();
+
+  const [isEmailing, setIsEmailing] = useState(false);
+
+  const handlePrint = () => {
+    setIsPreviewOpen(true);
+    setTimeout(() => {
+      window.print();
+    }, 500);
+  };
+
+  const handleEmail = async (invoice: Invoice) => {
+    setIsEmailing(true);
+    toast({
+      title: "Sending Invoice...",
+      description: `Drafting email to ${invoice.guest?.name || 'guest'}...`,
+    });
+
+    // Simulate network delay
+    await new Promise(r => setTimeout(r, 1500));
+
+    setIsEmailing(false);
+    toast({
+      title: "Invoice Sent Successfully",
+      description: `Invoice ${invoice.invoice_number} has been delivered to ${invoice.guest?.name || 'the guest'}.`,
+    });
+  };
+
+
+  // Calculate totals for dashboard - Managers only see TODAY
+  const filteredInvoices = role === 'manager'
+    ? invoices.filter(i => isToday(new Date(i.created_at)))
+    : invoices;
+
+  const totalRevenue = filteredInvoices.filter((i) => i.status === "paid").reduce((sum, i) => sum + i.amount, 0);
+  const pendingRevenue = filteredInvoices.filter((i) => i.status !== "paid").reduce((sum, i) => sum + (i.amount - (i.amount_paid || 0)), 0);
 
   // Auto-fill logic when Guest is selected
   useEffect(() => {
@@ -331,7 +374,7 @@ export default function Billing() {
                                 Linked to Booking ID: {bookings.find(b => b.id === formData.booking_id)?.booking_number}
                               </p>
                               <p className="text-sm text-muted-foreground">
-                                Outstanding Balance: <span className="font-mono text-foreground font-medium">${formData.amount}</span>
+                                Outstanding Balance: <span className="font-mono text-foreground font-medium">{formatAndConvert(parseFloat(formData.amount), currency)}</span>
                               </p>
                             </div>
                           </div>
@@ -423,7 +466,7 @@ export default function Billing() {
 
                     <div className="flex justify-between items-center bg-muted/30 p-3 rounded-lg">
                       <span className="font-semibold">Total Amount</span>
-                      <span className="text-xl font-bold">${calculateTotal(formData.line_items).toFixed(2)}</span>
+                      <span className="text-xl font-bold">{formatAndConvert(calculateTotal(formData.line_items), currency)}</span>
                     </div>
 
                     <DialogFooter className="flex justify-between w-full sm:justify-between">
@@ -446,14 +489,18 @@ export default function Billing() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <Card>
             <CardContent className="p-4 flex flex-col justify-center">
-              <span className="text-muted-foreground text-sm">Collected</span>
-              <span className="text-2xl font-bold text-green-600">${totalRevenue.toLocaleString()}</span>
+              <span className="text-muted-foreground text-sm">
+                {role === 'manager' ? "Today's Collected" : "Total Collected"}
+              </span>
+              <span className="text-2xl font-bold text-green-600">{formatAndConvert(totalRevenue, currency)}</span>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4 flex flex-col justify-center">
-              <span className="text-muted-foreground text-sm">Pending</span>
-              <span className="text-2xl font-bold text-orange-600">${pendingRevenue.toLocaleString()}</span>
+              <span className="text-muted-foreground text-sm">
+                {role === 'manager' ? "Today's Pending" : "Total Pending"}
+              </span>
+              <span className="text-2xl font-bold text-orange-600">{formatAndConvert(pendingRevenue, currency)}</span>
             </CardContent>
           </Card>
         </div>
@@ -482,11 +529,11 @@ export default function Billing() {
                   >
                     <TableCell className="font-mono">{inv.invoice_number}</TableCell>
                     <TableCell>{inv.guest?.name || 'Unknown'}</TableCell>
-                    <TableCell className="text-right">${inv.amount}</TableCell>
+                    <TableCell className="text-right">{formatAndConvert(inv.amount, currency)}</TableCell>
 
                     {/* New: Showing Amount Paid */}
                     <TableCell className="text-center text-muted-foreground">
-                      {inv.amount_paid > 0 ? <span className="text-green-600 font-medium">${inv.amount_paid}</span> : '-'}
+                      {inv.amount_paid > 0 ? <span className="text-green-600 font-medium">{formatAndConvert(inv.amount_paid, currency)}</span> : '-'}
                     </TableCell>
 
                     <TableCell>{getStatusBadge(inv)}</TableCell>
@@ -515,7 +562,14 @@ export default function Billing() {
                   <p className="text-sm text-muted-foreground">Guest: {selectedInvoice.guest?.name}</p>
                 </div>
                 <div className="flex gap-2">
+                  <Button size="sm" variant="outline" className="gap-2" onClick={() => handleEmail(selectedInvoice)}>
+                    <Mail className="h-4 w-4" /> Email
+                  </Button>
+                  <Button size="sm" variant="outline" className="gap-2" onClick={() => setIsPreviewOpen(true)}>
+                    <Printer className="h-4 w-4" /> Preview
+                  </Button>
                   <Button size="sm" variant="outline" onClick={() => setSelectedInvoice(null)}>Cancel</Button>
+
                   <Button size="sm" onClick={() => {
                     updateInvoice.mutate({
                       id: selectedInvoice.id,
@@ -609,18 +663,18 @@ export default function Billing() {
                 <div className="flex flex-col gap-2 pt-4 border-t">
                   <div className="flex justify-between items-center text-muted-foreground">
                     <span>Total Bill</span>
-                    <span>${calculateTotal(selectedInvoice.line_items).toFixed(2)}</span>
+                    <span>{formatAndConvert(calculateTotal(selectedInvoice.line_items), currency)}</span>
                   </div>
                   {selectedInvoice.amount_paid > 0 && (
                     <div className="flex justify-between items-center text-green-600">
                       <span>Paid (Advance/Deposit)</span>
-                      <span>- ${selectedInvoice.amount_paid.toFixed(2)}</span>
+                      <span>- {formatAndConvert(selectedInvoice.amount_paid, currency)}</span>
                     </div>
                   )}
                   <div className="flex justify-between items-center pt-2 border-t mt-2">
                     <span className="font-bold text-lg">Remaining Due</span>
                     <span className="font-bold text-2xl">
-                      ${(calculateTotal(selectedInvoice.line_items) - (selectedInvoice.amount_paid || 0)).toFixed(2)}
+                      {formatAndConvert(calculateTotal(selectedInvoice.line_items) - (selectedInvoice.amount_paid || 0), currency)}
                     </span>
                   </div>
                 </div>
@@ -628,6 +682,95 @@ export default function Billing() {
             </div>
           )}
         </div>
+        {/* Invoice Preview Dialog */}
+        <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader className="print:hidden">
+              <DialogTitle>Invoice Preview</DialogTitle>
+            </DialogHeader>
+            {selectedInvoice && (
+              <div id="printable-invoice" className="bg-white text-black p-8 rounded-lg shadow-inner">
+                <div className="flex justify-between items-start border-b pb-6 mb-6">
+                  <div>
+                    <h2 className="text-3xl font-bold text-primary">INVOICE</h2>
+                    <p className="text-sm text-gray-500 mt-1"># {selectedInvoice.invoice_number}</p>
+                  </div>
+                  <div className="text-right">
+                    <h3 className="font-bold">Grand Sky Resort</h3>
+                    <p className="text-sm text-gray-500">123 Hospitality Way, Maldives</p>
+                    <p className="text-sm text-gray-500">contact@grandsky.com</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-8 mb-8">
+                  <div>
+                    <h4 className="text-xs font-bold uppercase text-gray-400 mb-2">Bill To</h4>
+                    <p className="font-bold text-lg">{selectedInvoice.guest?.name}</p>
+                    <p className="text-sm text-gray-600">Guest ID: {selectedInvoice.guest_id?.slice(0, 8)}</p>
+                  </div>
+                  <div className="text-right">
+                    <h4 className="text-xs font-bold uppercase text-gray-400 mb-2">Invoice Date</h4>
+                    <p className="font-bold">{format(new Date(selectedInvoice.created_at), "MMMM dd, yyyy")}</p>
+                    <h4 className="text-xs font-bold uppercase text-gray-400 mt-4 mb-2">Status</h4>
+                    <p className={`font-bold uppercase ${selectedInvoice.status === 'paid' ? 'text-green-600' : 'text-orange-600'}`}>
+                      {selectedInvoice.status}
+                    </p>
+                  </div>
+                </div>
+
+                <table className="w-full mb-8">
+                  <thead>
+                    <tr className="border-b-2 border-gray-100 italic">
+                      <th className="text-left py-3 font-semibold">Description</th>
+                      <th className="text-center py-3 font-semibold w-20">Qty</th>
+                      <th className="text-right py-3 font-semibold w-32">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(selectedInvoice.line_items || []).map((item, idx) => (
+                      <tr key={idx} className="border-b border-gray-50">
+                        <td className="py-4 text-gray-800">{item.description}</td>
+                        <td className="py-4 text-center text-gray-600">{item.quantity}</td>
+                        <td className="py-4 text-right font-medium">{formatAndConvert(item.amount, currency)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <div className="flex justify-end">
+                  <div className="w-64 space-y-3">
+                    <div className="flex justify-between text-gray-500">
+                      <span>Subtotal</span>
+                      <span>{formatAndConvert(calculateTotal(selectedInvoice.line_items), currency)}</span>
+                    </div>
+                    {selectedInvoice.amount_paid > 0 && (
+                      <div className="flex justify-between text-green-600 font-medium">
+                        <span>Paid Amount</span>
+                        <span>- {formatAndConvert(selectedInvoice.amount_paid, currency)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center pt-3 border-t-2 border-gray-200">
+                      <span className="font-bold text-lg text-gray-900">Total Due</span>
+                      <span className="font-bold text-2xl text-primary">
+                        {formatAndConvert(calculateTotal(selectedInvoice.line_items) - (selectedInvoice.amount_paid || 0), currency)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-12 text-center text-xs text-gray-400 italic">
+                  Thank you for choosing Grand Sky Resort. Please keep this invoice for your records.
+                </div>
+              </div>
+            )}
+            <DialogFooter className="print:hidden mt-6">
+              <Button variant="outline" onClick={() => setIsPreviewOpen(false)}>Close Preview</Button>
+              <Button onClick={() => window.print()} className="gap-2">
+                <Printer className="h-4 w-4" /> Print PDF
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
   );

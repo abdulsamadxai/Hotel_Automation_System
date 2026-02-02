@@ -20,8 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Clock, User, Users, Loader2, Trash2 } from "lucide-react";
-import { useStaff, useCreateStaff, useUpdateStaffStatus, useDeleteStaff, StaffRole, StaffStatus } from "@/hooks/useStaff";
+import { Plus, Clock, User, Users, Loader2, Trash2, Save } from "lucide-react";
+import { useStaff, useCreateStaff, useUpdateStaff, useUpdateStaffStatus, useDeleteStaff, StaffRole, StaffStatus, type StaffMember } from "@/hooks/useStaff";
 import { useHousekeepingTasks } from "@/hooks/useHousekeeping";
 import { format } from "date-fns";
 
@@ -42,13 +42,16 @@ export default function Staff() {
   const { data: staff = [], isLoading } = useStaff();
   const { data: tasks = [] } = useHousekeepingTasks();
   const createStaff = useCreateStaff();
+  const updateStaff = useUpdateStaff();
   const updateStatus = useUpdateStaffStatus();
   const deleteStaff = useDeleteStaff();
 
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
+    password: "",
     phone: "",
     role: "housekeeping" as StaffRole,
     shift: "morning",
@@ -58,16 +61,52 @@ export default function Staff() {
   const pendingTasks = tasks.filter((t) => t.status === "pending").length;
   const overdueTasks = tasks.filter((t) => t.status === "overdue").length;
 
-  const handleCreateStaff = async () => {
-    await createStaff.mutateAsync({
-      name: formData.name,
-      email: formData.email || undefined,
-      phone: formData.phone || undefined,
-      role: formData.role,
-      shift: formData.shift,
-    });
-    setIsAddDialogOpen(false);
-    setFormData({ name: "", email: "", phone: "", role: "housekeeping", shift: "morning" });
+  const handleOpenDialog = (member?: StaffMember) => {
+    if (member) {
+      setEditingStaff(member);
+      setFormData({
+        name: member.name,
+        email: member.email || "",
+        password: "", // Don't show existing password
+        phone: member.phone || "",
+        role: member.role,
+        shift: member.shift || "morning",
+      });
+    } else {
+      setEditingStaff(null);
+      setFormData({ name: "", email: "", password: "", phone: "", role: "housekeeping", shift: "morning" });
+    }
+    setIsDialogOpen(true);
+  };
+
+  const handleSaveStaff = async () => {
+    if (editingStaff) {
+      const updates: any = {
+        name: formData.name,
+        email: formData.email || undefined,
+        phone: formData.phone || undefined,
+        role: formData.role,
+        shift: formData.shift,
+      };
+      if (formData.password) updates.password = formData.password;
+
+      await updateStaff.mutateAsync({
+        id: editingStaff.id,
+        ...updates
+      });
+    } else {
+      await createStaff.mutateAsync({
+        name: formData.name,
+        email: formData.email || undefined,
+        password: formData.password,
+        phone: formData.phone || undefined,
+        role: formData.role,
+        shift: formData.shift,
+      });
+    }
+    setIsDialogOpen(false);
+    setEditingStaff(null);
+    setFormData({ name: "", email: "", password: "", phone: "", role: "housekeeping", shift: "morning" });
   };
 
   const handleStatusChange = async (staffId: string, status: StaffStatus) => {
@@ -107,17 +146,17 @@ export default function Staff() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="gap-2">
-                  <Plus className="h-4 w-4" />
-                  Add Staff
-                </Button>
-              </DialogTrigger>
+            <Button className="gap-2" onClick={() => handleOpenDialog()}>
+              <Plus className="h-4 w-4" />
+              Add Staff
+            </Button>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Add Staff Member</DialogTitle>
-                  <DialogDescription>Add a new staff member to your team.</DialogDescription>
+                  <DialogTitle>{editingStaff ? "Edit Staff Member" : "Add Staff Member"}</DialogTitle>
+                  <DialogDescription>
+                    {editingStaff ? "Update staff member details." : "Add a new staff member to your team."}
+                  </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
@@ -130,22 +169,33 @@ export default function Staff() {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Email</Label>
+                      <Label>Email *</Label>
                       <Input
                         type="email"
                         value={formData.email}
                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                         placeholder="email@example.com"
+                        required
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Phone</Label>
+                      <Label>{editingStaff ? "New Password (optional)" : "Password *"}</Label>
                       <Input
-                        value={formData.phone}
-                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                        placeholder="+1 234 567 8900"
+                        type="password"
+                        value={formData.password}
+                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                        placeholder="••••••••"
+                        required={!editingStaff}
                       />
                     </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Phone</Label>
+                    <Input
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      placeholder="+1 234 567 8900"
+                    />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -183,11 +233,11 @@ export default function Staff() {
                     </div>
                   </div>
                   <Button
-                    onClick={handleCreateStaff}
-                    disabled={createStaff.isPending || !formData.name}
+                    onClick={handleSaveStaff}
+                    disabled={createStaff.isPending || updateStaff.isPending || !formData.name}
                     className="w-full"
                   >
-                    {createStaff.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add Staff Member"}
+                    {createStaff.isPending || updateStaff.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingStaff ? "Update Staff" : "Add Staff Member")}
                   </Button>
                 </div>
               </DialogContent>
@@ -244,9 +294,8 @@ export default function Staff() {
                         <div className="flex items-center gap-3">
                           <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium">
                             {member.name
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")}
+                              ? member.name.split(" ").filter(Boolean).map((n) => n[0]).join("").toUpperCase().slice(0, 2)
+                              : "U"}
                           </div>
                           <div>
                             <p className="font-medium">{member.name}</p>
@@ -280,14 +329,24 @@ export default function Staff() {
                               <span className="text-muted-foreground">/{taskCounts.total} tasks</span>
                             </p>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive"
-                            onClick={() => handleDeleteStaff(member.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <div className="flex gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-primary"
+                              onClick={() => handleOpenDialog(member)}
+                            >
+                              <Save className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive"
+                              onClick={() => handleDeleteStaff(member.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -317,9 +376,8 @@ export default function Staff() {
                 {tasks.filter(t => t.status !== "completed").map((task) => (
                   <div
                     key={task.id}
-                    className={`p-4 hover:bg-muted/30 transition-colors ${
-                      task.status === "overdue" ? "bg-status-error/5" : ""
-                    }`}
+                    className={`p-4 hover:bg-muted/30 transition-colors ${task.status === "overdue" ? "bg-status-error/5" : ""
+                      }`}
                   >
                     <div className="flex items-start justify-between">
                       <div>
@@ -329,7 +387,13 @@ export default function Staff() {
                           <span>{task.assignee?.name || "Unassigned"}</span>
                           <span>•</span>
                           <Clock className="h-3 w-3" />
-                          <span>{task.due_at ? format(new Date(task.due_at), "h:mm a") : "No due time"}</span>
+                          <span>{(() => {
+                            try {
+                              return task.due_at ? format(new Date(task.due_at), "h:mm a") : "No due time";
+                            } catch (e) {
+                              return "Invalid date";
+                            }
+                          })()}</span>
                         </div>
                       </div>
                       <StatusBadge
@@ -337,10 +401,10 @@ export default function Staff() {
                           task.status === "in_progress"
                             ? "info"
                             : task.status === "overdue"
-                            ? "error"
-                            : "warning"
+                              ? "error"
+                              : "warning"
                         }
-                        label={task.status.replace("_", " ")}
+                        label={(task?.status || 'pending').replace("_", " ")}
                         size="sm"
                       />
                     </div>

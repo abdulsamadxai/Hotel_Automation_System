@@ -16,7 +16,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -25,11 +24,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Clock, CheckCircle2, AlertCircle, Zap, Play, Loader2, Trash2 } from "lucide-react";
-import { useHousekeepingTasks, useCreateTask, useUpdateTaskStatus, useAssignTask, useDeleteTask, TaskStatus, TaskType, TaskPriority } from "@/hooks/useHousekeeping";
+import { Plus, Clock, CheckCircle2, AlertCircle, Zap, Play, Loader2, Trash2, Edit } from "lucide-react";
+import { useHousekeepingTasks, useCreateTask, useUpdateTask, useUpdateTaskStatus, useAssignTask, useDeleteTask, TaskStatus, TaskType, TaskPriority, type HousekeepingTask } from "@/hooks/useHousekeeping";
 import { useRealtimeHousekeeping } from "@/hooks/useActivity";
 import { useRooms } from "@/hooks/useRooms";
 import { useStaff } from "@/hooks/useStaff";
+import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
 
 const taskTypeLabels: Record<TaskType, string> = {
@@ -46,23 +46,64 @@ const priorityColors: Record<TaskPriority, string> = {
   high: "text-status-error",
 };
 
+import { toast } from "@/hooks/use-toast";
+import { useEffect } from "react";
+
 export default function Housekeeping() {
   useRealtimeHousekeeping();
-  const { data: tasks = [], isLoading } = useHousekeepingTasks();
+  const { role, user } = useAuth();
+  const { data: allTasks = [], isLoading } = useHousekeepingTasks();
+
+  // Notification for Housekeeping
+  useEffect(() => {
+    if (role === 'housekeeping') {
+      const pendingCount = allTasks.filter(t => t.status === 'pending').length;
+      if (pendingCount > 0) {
+        toast({
+          title: "Tasks Notification",
+          description: `You have ${pendingCount} pending cleaning tasks assigned to you.`,
+        });
+      }
+    }
+  }, [allTasks.length, role]);
   const { data: rooms = [] } = useRooms();
   const { data: staffMembers = [] } = useStaff();
   const createTask = useCreateTask();
+  const updateTask = useUpdateTask();
   const updateStatus = useUpdateTaskStatus();
   const assignTask = useAssignTask();
   const deleteTask = useDeleteTask();
 
+  const currentStaffMember = staffMembers.find(s => s.user_id === user?.id);
+
+  const tasks = role === 'housekeeping'
+    ? allTasks.filter(t => t.assignee_id === currentStaffMember?.id)
+    : allTasks;
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<HousekeepingTask | null>(null);
   const [formData, setFormData] = useState({
     roomId: "",
     type: "checkout_clean" as TaskType,
     priority: "medium" as TaskPriority,
     assigneeId: "",
   });
+
+  const handleOpenDialog = (task?: HousekeepingTask) => {
+    if (task) {
+      setEditingTask(task);
+      setFormData({
+        roomId: task.room_id,
+        type: task.type,
+        priority: task.priority,
+        assigneeId: task.assignee_id || "",
+      });
+    } else {
+      setEditingTask(null);
+      setFormData({ roomId: "", type: "checkout_clean", priority: "medium", assigneeId: "" });
+    }
+    setIsDialogOpen(true);
+  };
 
   const statusCounts = tasks.reduce((acc, task) => {
     acc[task.status] = (acc[task.status] || 0) + 1;
@@ -71,15 +112,26 @@ export default function Housekeeping() {
 
   const housekeepingStaff = staffMembers.filter((s) => s.role === "housekeeping");
 
-  const handleCreateTask = async () => {
-    await createTask.mutateAsync({
-      room_id: formData.roomId,
-      type: formData.type,
-      priority: formData.priority,
-      assignee_id: formData.assigneeId || undefined,
-      due_at: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(), // 2 hours from now
-    });
+  const handleSaveTask = async () => {
+    if (editingTask) {
+      await updateTask.mutateAsync({
+        id: editingTask.id,
+        room_id: formData.roomId,
+        type: formData.type,
+        priority: formData.priority,
+        assignee_id: formData.assigneeId || undefined,
+      });
+    } else {
+      await createTask.mutateAsync({
+        room_id: formData.roomId,
+        type: formData.type,
+        priority: formData.priority,
+        assignee_id: formData.assigneeId || undefined,
+        due_at: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+      });
+    }
     setIsDialogOpen(false);
+    setEditingTask(null);
     setFormData({ roomId: "", type: "checkout_clean", priority: "medium", assigneeId: "" });
   };
 
@@ -108,162 +160,136 @@ export default function Housekeeping() {
   return (
     <AppLayout>
       <div className="space-y-6 animate-fade-in">
-        {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Housekeeping</h1>
+            <h1 className="text-2xl font-bold tracking-tight">
+              {role === 'housekeeping' ? "My Cleaning Tasks" : "Housekeeping Management"}
+            </h1>
             <p className="text-muted-foreground">
-              Manage cleaning tasks and room readiness
+              {role === 'housekeeping' ? "Your assigned duties for today" : "Manage cleaning tasks and room readiness"}
             </p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2">
-                <Plus className="h-4 w-4" />
-                Create Task
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create Housekeeping Task</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label>Room *</Label>
-                  <Select
-                    value={formData.roomId}
-                    onValueChange={(v) => setFormData({ ...formData, roomId: v })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select room" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {rooms.map((room) => (
-                        <SelectItem key={room.id} value={room.id}>
-                          Room {room.number} - {room.status}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Task Type</Label>
-                    <Select
-                      value={formData.type}
-                      onValueChange={(v) => setFormData({ ...formData, type: v as TaskType })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="checkout_clean">Checkout Clean</SelectItem>
-                        <SelectItem value="stay_clean">Stay Clean</SelectItem>
-                        <SelectItem value="deep_clean">Deep Clean</SelectItem>
-                        <SelectItem value="inspection">Inspection</SelectItem>
-                        <SelectItem value="maintenance">Maintenance</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Priority</Label>
-                    <Select
-                      value={formData.priority}
-                      onValueChange={(v) => setFormData({ ...formData, priority: v as TaskPriority })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="low">Low</SelectItem>
-                        <SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="high">High</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Assign To</Label>
-                  <Select
-                    value={formData.assigneeId}
-                    onValueChange={(v) => setFormData({ ...formData, assigneeId: v })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select staff member" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {housekeepingStaff.map((staff) => (
-                        <SelectItem key={staff.id} value={staff.id}>
-                          {staff.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button
-                  onClick={handleCreateTask}
-                  disabled={createTask.isPending || !formData.roomId}
-                  className="w-full"
+          {role !== 'housekeeping' && (
+            <Button className="gap-2" onClick={() => handleOpenDialog()}>
+              <Plus className="h-4 w-4" />
+              Create Task
+            </Button>
+          )}
+        </div>
+
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editingTask ? "Edit Housekeeping Task" : "Create Housekeeping Task"}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Room *</Label>
+                <Select
+                  value={formData.roomId}
+                  onValueChange={(v) => setFormData({ ...formData, roomId: v })}
                 >
-                  {createTask.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create Task"}
-                </Button>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select room" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {rooms.map((room) => (
+                      <SelectItem key={room.id} value={room.id}>
+                        Room {room.number} - {room.status}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            </DialogContent>
-          </Dialog>
-        </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Task Type</Label>
+                  <Select
+                    value={formData.type}
+                    onValueChange={(v) => setFormData({ ...formData, type: v as TaskType })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="checkout_clean">Checkout Clean</SelectItem>
+                      <SelectItem value="stay_clean">Stay Clean</SelectItem>
+                      <SelectItem value="deep_clean">Deep Clean</SelectItem>
+                      <SelectItem value="inspection">Inspection</SelectItem>
+                      <SelectItem value="maintenance">Maintenance</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Priority</Label>
+                  <Select
+                    value={formData.priority}
+                    onValueChange={(v) => setFormData({ ...formData, priority: v as TaskPriority })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Low</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Assign To</Label>
+                <Select
+                  value={formData.assigneeId}
+                  onValueChange={(v) => setFormData({ ...formData, assigneeId: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select staff member" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {housekeepingStaff.map((staff) => (
+                      <SelectItem key={staff.id} value={staff.id}>
+                        {staff.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                onClick={handleSaveTask}
+                disabled={createTask.isPending || updateTask.isPending || !formData.roomId}
+                className="w-full"
+              >
+                {createTask.isPending || updateTask.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingTask ? "Update Task" : "Create Task")}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
-        {/* Status Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="glass-card p-4">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="h-10 w-10 rounded-lg bg-status-warning/10 flex items-center justify-center text-status-warning">
-                <Clock className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{statusCounts.pending || 0}</p>
-                <p className="text-xs text-muted-foreground">Pending</p>
-              </div>
-            </div>
+          <div className="glass-card p-4 text-center">
+            <p className="text-2xl font-bold">{statusCounts.pending || 0}</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Pending</p>
           </div>
-          <div className="glass-card p-4">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="h-10 w-10 rounded-lg bg-status-info/10 flex items-center justify-center text-status-info">
-                <Clock className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{statusCounts.in_progress || 0}</p>
-                <p className="text-xs text-muted-foreground">In Progress</p>
-              </div>
-            </div>
+          <div className="glass-card p-4 text-center">
+            <p className="text-2xl font-bold text-status-info">{statusCounts.in_progress || 0}</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">In Progress</p>
           </div>
-          <div className="glass-card p-4">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="h-10 w-10 rounded-lg bg-status-success/10 flex items-center justify-center text-status-success">
-                <CheckCircle2 className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{statusCounts.completed || 0}</p>
-                <p className="text-xs text-muted-foreground">Completed</p>
-              </div>
-            </div>
+          <div className="glass-card p-4 text-center">
+            <p className="text-2xl font-bold text-status-success">{statusCounts.completed || 0}</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Completed</p>
           </div>
-          <div className="glass-card p-4">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="h-10 w-10 rounded-lg bg-status-error/10 flex items-center justify-center text-status-error">
-                <AlertCircle className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{statusCounts.overdue || 0}</p>
-                <p className="text-xs text-muted-foreground">Overdue</p>
-              </div>
-            </div>
+          <div className="glass-card p-4 text-center">
+            <p className="text-2xl font-bold text-status-error">{statusCounts.overdue || 0}</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Overdue</p>
           </div>
         </div>
 
-        {/* Tasks Table */}
         <div className="glass-card overflow-hidden">
           <div className="p-4 border-b border-border">
-            <h3 className="font-semibold">All Tasks</h3>
+            <h3 className="font-semibold">
+              {role === 'housekeeping' ? "My Assigned Tasks" : "All Housekeeping Tasks"}
+            </h3>
           </div>
           {tasks.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
@@ -293,8 +319,7 @@ export default function Housekeeping() {
                 {tasks.map((task) => (
                   <TableRow
                     key={task.id}
-                    className={`border-border hover:bg-muted/30 ${task.status === "overdue" ? "bg-status-error/5" : ""
-                      }`}
+                    className={`border-border hover:bg-muted/30 ${task.status === "overdue" ? "bg-status-error/5" : ""}`}
                   >
                     <TableCell className="font-mono text-sm">{task.task_number}</TableCell>
                     <TableCell className="font-medium">Room {task.room?.number || "N/A"}</TableCell>
@@ -305,18 +330,20 @@ export default function Housekeeping() {
                     </TableCell>
                     <TableCell>
                       {task.assignee?.name || (
-                        <Select onValueChange={(v) => handleAssignTask(task.id, v)}>
-                          <SelectTrigger className="w-32 h-8">
-                            <SelectValue placeholder="Assign" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {housekeepingStaff.map((staff) => (
-                              <SelectItem key={staff.id} value={staff.id}>
-                                {staff.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        role !== 'housekeeping' ? (
+                          <Select onValueChange={(v) => handleAssignTask(task.id, v)}>
+                            <SelectTrigger className="w-32 h-8">
+                              <SelectValue placeholder="Assign" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {housekeepingStaff.map((staff) => (
+                                <SelectItem key={staff.id} value={staff.id}>
+                                  {staff.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : "Unassigned"
                       )}
                     </TableCell>
                     <TableCell>
@@ -356,18 +383,30 @@ export default function Housekeeping() {
                             Complete
                           </Button>
                         )}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-8 w-8 text-destructive"
-                          onClick={() => {
-                            if (confirm("Delete this task?")) {
-                              deleteTask.mutate(task.id);
-                            }
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        {role !== 'housekeeping' && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 text-primary"
+                              onClick={() => handleOpenDialog(task)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 text-destructive"
+                              onClick={() => {
+                                if (confirm("Delete this task?")) {
+                                  deleteTask.mutate(task.id);
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -377,6 +416,6 @@ export default function Housekeeping() {
           )}
         </div>
       </div>
-    </AppLayout >
+    </AppLayout>
   );
 }

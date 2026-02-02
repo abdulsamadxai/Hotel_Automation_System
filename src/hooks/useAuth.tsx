@@ -1,111 +1,73 @@
-import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
+// MOCK AUTH - Frontend Only
+import { createContext, useContext, ReactNode, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { User, Session } from '@supabase/supabase-js';
 
-type HotelRole = 'owner' | 'manager' | 'reception' | 'housekeeping' | 'accountant';
+export type UserRole = 'super_admin' | 'owner' | 'manager' | 'housekeeping' | 'staff';
 
 interface AuthContextType {
-  user: User | null;
-  session: Session | null;
-  role: HotelRole | null;
+  user: any;
+  session: any;
+  role: UserRole;
+  hotelId: string;
   isLoading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signUp: (email: string, password: string, fullName?: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: null }>;
+  signUp: (email: string, password: string, fullName?: string) => Promise<{ error: null }>;
   signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [role, setRole] = useState<HotelRole | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        if (session?.user) {
-          // Fetch user role - defer to avoid blocking
-          setTimeout(async () => {
-            const { data } = await supabase
-              .from('user_roles')
-              .select('role')
-              .eq('user_id', session.user.id)
-              .single();
-            
-            setRole(data?.role as HotelRole ?? null);
-          }, 0);
-        } else {
-          setRole(null);
-        }
-        
-        setIsLoading(false);
-      }
-    );
-
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', session.user.id)
-          .single()
-          .then(({ data }) => {
-            setRole(data?.role as HotelRole ?? null);
-          });
-      }
-      
-      setIsLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+  // Use localStorage to persist role across reloads
+  const [role, setRole] = useState<UserRole>(() => (localStorage.getItem('mock-role') as UserRole) || 'owner');
+  const [user, setUser] = useState<any>(() => {
+    const saved = localStorage.getItem('mock-user');
+    return saved ? JSON.parse(saved) : { id: '123', email: 'owner@example.com', user_metadata: { full_name: 'Hotel Owner' } };
+  });
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { error: error as Error | null };
+    // Determine role from email (or just allow any email for mock)
+    let newRole: UserRole = 'owner';
+    let name = 'Hotel Owner';
+
+    if (email.includes('admin')) newRole = 'super_admin';
+    else if (email.includes('manager')) newRole = 'manager';
+    else if (email.includes('housekeeping')) newRole = 'housekeeping';
+    else if (email.includes('staff')) newRole = 'staff';
+
+    const newUser = { id: Math.random().toString(), email, user_metadata: { full_name: name } };
+
+    setRole(newRole);
+    setUser(newUser);
+    localStorage.setItem('mock-role', newRole);
+    localStorage.setItem('mock-user', JSON.stringify(newUser));
+
+    return { error: null };
   };
 
   const signUp = async (email: string, password: string, fullName?: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: window.location.origin,
-        data: {
-          full_name: fullName,
-        },
-      },
-    });
-    return { error: error as Error | null };
+    const newUser = { id: Math.random().toString(), email, user_metadata: { full_name: fullName || 'New User' } };
+    setUser(newUser);
+    setRole('owner');
+    localStorage.setItem('mock-role', 'owner');
+    localStorage.setItem('mock-user', JSON.stringify(newUser));
+    return { error: null };
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
     setUser(null);
-    setSession(null);
-    setRole(null);
+    localStorage.removeItem('mock-role');
+    localStorage.removeItem('mock-user');
   };
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        session,
+        session: user ? { access_token: 'mock-token', user } : null,
         role,
-        isLoading,
+        hotelId: 'mock-hotel-1',
+        isLoading: false,
         signIn,
         signUp,
         signOut,
@@ -116,10 +78,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
+export const SUPER_ADMIN_EMAIL = 'admin@autopilot.com';
+
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
   return context;
 }
+

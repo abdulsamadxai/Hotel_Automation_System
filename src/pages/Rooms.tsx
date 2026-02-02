@@ -18,18 +18,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Bed, Users, DollarSign, Loader2, Trash2 } from "lucide-react";
-import { useRooms, useCreateRoom, useUpdateRoom, useDeleteRoom, RoomStatus, RoomType } from "@/hooks/useRooms";
+import { Plus, Bed, Users, DollarSign, Loader2, Trash2, Save } from "lucide-react";
+import { useRooms, useCreateRoom, useUpdateRoom, useDeleteRoom, RoomStatus, RoomType, type Room } from "@/hooks/useRooms";
 import { useRealtimeRooms } from "@/hooks/useActivity";
+import { useCurrency } from "@/contexts/AppSettingsContext";
+import { formatAndConvert } from "@/utils/currency";
 
 export default function Rooms() {
   useRealtimeRooms();
   const { data: rooms = [], isLoading } = useRooms();
+  const { currency } = useCurrency();
   const createRoom = useCreateRoom();
   const updateRoom = useUpdateRoom();
   const deleteRoom = useDeleteRoom();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const [formData, setFormData] = useState({
     number: "",
     type: "standard" as RoomType,
@@ -39,21 +43,47 @@ export default function Rooms() {
   });
 
   const statusCounts = rooms.reduce((acc, room) => {
-    acc[room.status] = (acc[room.status] || 0) + 1;
+    const s = room.status as string;
+    acc[s] = (acc[s] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
-  const handleCreateRoom = async () => {
-    await createRoom.mutateAsync({
-      number: formData.number,
-      type: formData.type,
-      floor: formData.floor,
-      status: "available",
-      capacity: formData.capacity,
-      rate: formData.rate,
-      amenities: [],
-    });
+  const handleOpenDialog = (room?: Room) => {
+    if (room) {
+      setEditingRoom(room);
+      setFormData({
+        number: room.number,
+        type: room.type,
+        floor: room.floor,
+        capacity: room.capacity,
+        rate: room.rate,
+      });
+    } else {
+      setEditingRoom(null);
+      setFormData({ number: "", type: "standard", floor: 1, capacity: 2, rate: 99 });
+    }
+    setIsDialogOpen(true);
+  };
+
+  const handleSaveRoom = async () => {
+    if (editingRoom) {
+      await updateRoom.mutateAsync({
+        id: editingRoom.id,
+        ...formData,
+      });
+    } else {
+      await createRoom.mutateAsync({
+        number: formData.number,
+        type: formData.type,
+        floor: formData.floor,
+        status: "available",
+        capacity: formData.capacity,
+        rate: formData.rate,
+        amenities: [],
+      });
+    }
     setIsDialogOpen(false);
+    setEditingRoom(null);
     setFormData({ number: "", type: "standard", floor: 1, capacity: 2, rate: 99 });
   };
 
@@ -82,78 +112,79 @@ export default function Rooms() {
               Manage room inventory and status
             </p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2">
-                <Plus className="h-4 w-4" />
-                Add Room
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New Room</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
+          <div className="flex items-center gap-2">
+            <Button className="gap-2" onClick={() => handleOpenDialog()}>
+              <Plus className="h-4 w-4" />
+              Add Room
+            </Button>
+          </div>
+        </div>
+
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editingRoom ? "Edit Room" : "Add New Room"}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Room Number</Label>
+                <Input
+                  placeholder="e.g., 101"
+                  value={formData.number}
+                  onChange={(e) => setFormData({ ...formData, number: e.target.value })}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Room Number</Label>
+                  <Label>Type</Label>
+                  <Select
+                    value={formData.type}
+                    onValueChange={(v) => setFormData({ ...formData, type: v as RoomType })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="standard">Standard</SelectItem>
+                      <SelectItem value="deluxe">Deluxe</SelectItem>
+                      <SelectItem value="suite">Suite</SelectItem>
+                      <SelectItem value="penthouse">Penthouse</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Floor</Label>
                   <Input
-                    placeholder="e.g., 101"
-                    value={formData.number}
-                    onChange={(e) => setFormData({ ...formData, number: e.target.value })}
+                    type="number"
+                    value={formData.floor}
+                    onChange={(e) => setFormData({ ...formData, floor: parseInt(e.target.value) })}
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Type</Label>
-                    <Select
-                      value={formData.type}
-                      onValueChange={(v) => setFormData({ ...formData, type: v as RoomType })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="standard">Standard</SelectItem>
-                        <SelectItem value="deluxe">Deluxe</SelectItem>
-                        <SelectItem value="suite">Suite</SelectItem>
-                        <SelectItem value="penthouse">Penthouse</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Floor</Label>
-                    <Input
-                      type="number"
-                      value={formData.floor}
-                      onChange={(e) => setFormData({ ...formData, floor: parseInt(e.target.value) })}
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Capacity</Label>
-                    <Input
-                      type="number"
-                      value={formData.capacity}
-                      onChange={(e) => setFormData({ ...formData, capacity: parseInt(e.target.value) })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Rate ($/night)</Label>
-                    <Input
-                      type="number"
-                      value={formData.rate}
-                      onChange={(e) => setFormData({ ...formData, rate: parseFloat(e.target.value) })}
-                    />
-                  </div>
-                </div>
-                <Button onClick={handleCreateRoom} disabled={createRoom.isPending} className="w-full">
-                  {createRoom.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create Room"}
-                </Button>
               </div>
-            </DialogContent>
-          </Dialog>
-        </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Capacity</Label>
+                  <Input
+                    type="number"
+                    value={formData.capacity}
+                    onChange={(e) => setFormData({ ...formData, capacity: parseInt(e.target.value) })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Rate per night</Label>
+                  <Input
+                    type="number"
+                    value={formData.rate}
+                    onChange={(e) => setFormData({ ...formData, rate: parseFloat(e.target.value) })}
+                  />
+                </div>
+              </div>
+              <Button onClick={handleSaveRoom} disabled={createRoom.isPending || updateRoom.isPending} className="w-full">
+                {createRoom.isPending || updateRoom.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingRoom ? "Update Room" : "Create Room")}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Status Overview */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -182,7 +213,7 @@ export default function Rooms() {
             <p className="text-muted-foreground text-sm max-w-sm mx-auto mb-4">
               Add rooms to your property to start managing inventory and bookings.
             </p>
-            <Button className="gap-2" onClick={() => setIsDialogOpen(true)}>
+            <Button className="gap-2" onClick={() => handleOpenDialog()}>
               <Plus className="h-4 w-4" />
               Add Room
             </Button>
@@ -213,7 +244,7 @@ export default function Rooms() {
                   </div>
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <DollarSign className="h-4 w-4" />
-                    <span>${room.rate}/night</span>
+                    <span>{formatAndConvert(room.rate, currency)}/night</span>
                   </div>
                 </div>
 
@@ -234,6 +265,13 @@ export default function Rooms() {
                     </SelectContent>
                   </Select>
                   <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => handleOpenDialog(room)}
+                  >
+                    <Save className="h-4 w-4" />
+                  </Button>
+                  <Button
                     variant="destructive"
                     size="icon"
                     onClick={() => {
@@ -250,6 +288,6 @@ export default function Rooms() {
           </div>
         )}
       </div>
-    </AppLayout>
+    </AppLayout >
   );
 }

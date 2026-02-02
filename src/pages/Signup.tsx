@@ -30,7 +30,7 @@ export default function Signup() {
       setIsLoading(false);
       return;
     }
-    
+
     // Check for complexity requirements
     const hasUppercase = /[A-Z]/.test(password);
     const hasNumber = /[0-9]/.test(password);
@@ -71,8 +71,8 @@ export default function Signup() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 text-primary mb-4">
             <Hotel className="h-8 w-8" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">Create Account</h1>
-          <p className="text-muted-foreground mt-2">Get started with Hotel Autopilot ONE</p>
+          <h1 className="text-2xl font-bold tracking-tight">Register New Hotel</h1>
+          <p className="text-muted-foreground mt-2">Scale your property with Hotel Autopilot ONE</p>
         </div>
 
         {/* Form */}
@@ -150,7 +150,7 @@ export default function Signup() {
         </div>
 
         <p className="text-center text-xs text-muted-foreground">
-          First user automatically becomes the Owner with full access
+          Join the network of enterprise hotels powered by Autopilot ONE
         </p>
       </div>
     </div>

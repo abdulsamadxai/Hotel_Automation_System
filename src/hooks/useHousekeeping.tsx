@@ -39,7 +39,7 @@ export function useHousekeepingTasks() {
           assignee:staff_members(id, name)
         `)
         .order("created_at", { ascending: false });
-      
+
       if (error) throw error;
       return data as HousekeepingTask[];
     },
@@ -59,7 +59,7 @@ export function useCreateTask() {
       due_at?: string;
     }) => {
       const taskNumber = `HK-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`;
-      
+
       const { data, error } = await supabase
         .from("housekeeping_tasks")
         .insert({
@@ -69,7 +69,7 @@ export function useCreateTask() {
         })
         .select()
         .single();
-      
+
       if (error) throw error;
       return data;
     },
@@ -95,7 +95,7 @@ export function useUpdateTaskStatus() {
         .eq("id", id)
         .select()
         .single();
-      
+
       if (error) throw error;
       return data;
     },
@@ -103,14 +103,21 @@ export function useUpdateTaskStatus() {
       queryClient.invalidateQueries({ queryKey: ["housekeeping"] });
       queryClient.invalidateQueries({ queryKey: ["rooms"] });
       queryClient.invalidateQueries({ queryKey: ["activity"] });
-      
+
       const statusMessages: Record<TaskStatus, string> = {
         pending: "Task set to pending",
-        in_progress: "Task started - room marked as cleaning",
+        in_progress: "Task started",
         completed: "Task completed - room is now available",
         overdue: "Task marked as overdue",
       };
-      
+
+      // AUTOMATION: If task is completed, mark the room as available
+      if (data.status === 'completed' && data.room_id) {
+        supabase.from('rooms').update({ status: 'available' }).eq('id', data.room_id).then(() => {
+          queryClient.invalidateQueries({ queryKey: ["rooms"] });
+        });
+      }
+
       toast({ title: statusMessages[data.status as TaskStatus] });
     },
     onError: (error) => {
@@ -130,7 +137,7 @@ export function useAssignTask() {
         .eq("id", id)
         .select()
         .single();
-      
+
       if (error) throw error;
       return data;
     },
@@ -144,6 +151,33 @@ export function useAssignTask() {
   });
 }
 
+export function useUpdateTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: { id: string;[key: string]: any }) => {
+      const { data, error } = await supabase
+        .from("housekeeping_tasks")
+        .update(updates)
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["housekeeping"] });
+      queryClient.invalidateQueries({ queryKey: ["rooms"] });
+      queryClient.invalidateQueries({ queryKey: ["activity"] });
+      toast({ title: "Task updated successfully" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error updating task", description: error.message, variant: "destructive" });
+    },
+  });
+}
+
 export function useDeleteTask() {
   const queryClient = useQueryClient();
 
@@ -153,7 +187,7 @@ export function useDeleteTask() {
         .from("housekeeping_tasks")
         .delete()
         .eq("id", id);
-      
+
       if (error) throw error;
     },
     onSuccess: () => {

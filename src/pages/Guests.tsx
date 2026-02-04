@@ -118,7 +118,7 @@ export default function Guests() {
 
 
   const filteredGuests = guests.filter(g =>
-    g.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (g.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (g.email && g.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (g.phone && g.phone.includes(searchTerm))
   );

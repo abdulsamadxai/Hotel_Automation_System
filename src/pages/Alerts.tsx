@@ -3,87 +3,21 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertCircle, CheckCircle2, Clock, Zap, X, Loader2, Bell } from "lucide-react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
+import { useNotifications, useMarkAsRead, useMarkAllAsRead } from "@/hooks/useNotifications";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Notification {
   id: string;
   title: string;
   message: string;
   type: "booking" | "task" | "alert" | "automation" | "room";
-  is_read: boolean;
+  is_read?: boolean;
+  read?: boolean;
   link: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
-}
-
-function useNotifications() {
-  return useQuery({
-    queryKey: ["notifications"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("notifications")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data as Notification[];
-    },
-  });
-}
-
-function useMarkNotificationRead() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { data, error } = await supabase
-        .from("notifications")
-        .update({ is_read: true })
-        .eq("id", id)
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["notifications"] });
-    },
-  });
-}
-
-function useMarkAllRead() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase
-        .from("notifications")
-        .update({ is_read: true })
-        .eq("is_read", false);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["notifications"] });
-      toast({ title: "All notifications marked as read" });
-    },
-  });
-}
-
-function useDeleteNotification() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("notifications")
-        .delete()
-        .eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["notifications"] });
-      toast({ title: "Notification dismissed" });
-    },
-  });
 }
 
 const typeConfig: Record<string, { color: string; bg: string; icon: typeof AlertCircle }> = {
@@ -94,23 +28,25 @@ const typeConfig: Record<string, { color: string; bg: string; icon: typeof Alert
   room: { color: "text-muted-foreground", bg: "bg-muted", icon: Bell },
 };
 
+
 export default function Alerts() {
   const { data: notifications = [], isLoading } = useNotifications();
-  const markRead = useMarkNotificationRead();
-  const markAllRead = useMarkAllRead();
-  const deleteNotification = useDeleteNotification();
+  const markRead = useMarkAsRead();
+  const markAllRead = useMarkAllAsRead();
 
-  const unread = notifications.filter((n) => !n.is_read).length;
+  const unread = notifications.filter((n) => !(n.is_read || n.read)).length;
   const alertCount = notifications.filter((n) => n.type === "alert").length;
   const automationCount = notifications.filter((n) => n.type === "automation").length;
-  const readCount = notifications.filter((n) => n.is_read).length;
+  const readCount = notifications.filter((n) => (n.is_read || n.read)).length;
 
   const handleAcknowledge = async (id: string) => {
     await markRead.mutateAsync(id);
   };
 
   const handleDismiss = async (id: string) => {
-    await deleteNotification.mutateAsync(id);
+    // For mock implementation, we'll just mark as read
+    await markRead.mutateAsync(id);
+    toast({ title: "Notification dismissed" });
   };
 
   const handleMarkAllRead = async () => {
@@ -138,8 +74,8 @@ export default function Alerts() {
               Monitor issues requiring attention
             </p>
           </div>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={handleMarkAllRead}
             disabled={markAllRead.isPending || unread === 0}
           >
@@ -212,13 +148,12 @@ export default function Alerts() {
             notifications.map((notification) => {
               const config = typeConfig[notification.type] || typeConfig.room;
               const IconComponent = config.icon;
-              
+
               return (
                 <div
                   key={notification.id}
-                  className={`glass-card p-5 transition-all ${
-                    notification.is_read ? "opacity-60" : ""
-                  }`}
+                  className={`glass-card p-5 transition-all ${notification.is_read ? "opacity-60" : ""
+                    }`}
                 >
                   <div className="flex items-start gap-4">
                     <div
@@ -256,8 +191,8 @@ export default function Alerts() {
                         </div>
                         <div className="flex gap-2 shrink-0">
                           {!notification.is_read && (
-                            <Button 
-                              variant="outline" 
+                            <Button
+                              variant="outline"
                               size="sm"
                               onClick={() => handleAcknowledge(notification.id)}
                               disabled={markRead.isPending}
@@ -265,9 +200,9 @@ export default function Alerts() {
                               Acknowledge
                             </Button>
                           )}
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             className="h-8 w-8"
                             onClick={() => handleDismiss(notification.id)}
                             disabled={deleteNotification.isPending}

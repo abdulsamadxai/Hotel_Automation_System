@@ -27,8 +27,6 @@ import { format } from "date-fns";
 
 const roleColors: Record<StaffRole, string> = {
   housekeeping: "bg-status-pending/15 text-status-pending",
-  reception: "bg-status-info/15 text-status-info",
-  maintenance: "bg-status-warning/15 text-status-warning",
   manager: "bg-primary/15 text-primary",
 };
 
@@ -155,7 +153,9 @@ export default function Staff() {
                 <DialogHeader>
                   <DialogTitle>{editingStaff ? "Edit Staff Member" : "Add Staff Member"}</DialogTitle>
                   <DialogDescription>
-                    {editingStaff ? "Update staff member details." : "Add a new staff member to your team."}
+                    {editingStaff
+                      ? "Update the details and permissions for this staff member."
+                      : "Register a new staff member. Their login credentials will be created using the provided email and your unique hotel code."}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
@@ -209,8 +209,6 @@ export default function Staff() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="housekeeping">Housekeeping</SelectItem>
-                          <SelectItem value="reception">Reception</SelectItem>
-                          <SelectItem value="maintenance">Maintenance</SelectItem>
                           <SelectItem value="manager">Manager</SelectItem>
                         </SelectContent>
                       </Select>
@@ -304,12 +302,12 @@ export default function Staff() {
                                 {member.role}
                               </Badge>
                               <Select
-                                value={member.status}
+                                value={member.status || 'off_duty'}
                                 onValueChange={(v) => handleStatusChange(member.id, v as StaffStatus)}
                               >
                                 <SelectTrigger className="h-6 w-auto border-0 p-0">
-                                  <Badge variant="outline" className={statusColors[member.status]}>
-                                    {member.status.replace("_", " ")}
+                                  <Badge variant="outline" className={statusColors[member.status || 'off_duty']}>
+                                    {(member.status || 'off_duty').replace("_", " ")}
                                   </Badge>
                                 </SelectTrigger>
                                 <SelectContent>
@@ -381,7 +379,7 @@ export default function Staff() {
                   >
                     <div className="flex items-start justify-between">
                       <div>
-                        <p className="font-medium">Room {task.room?.number || "N/A"} - {task.type.replace("_", " ")}</p>
+                        <p className="font-medium">Room {task.room?.number || "N/A"} - {(task.type || 'maintenance').replace("_", " ")}</p>
                         <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
                           <User className="h-3 w-3" />
                           <span>{task.assignee?.name || "Unassigned"}</span>
@@ -413,8 +411,8 @@ export default function Staff() {
               </div>
             )}
           </div>
-        </div>
-      </div>
-    </AppLayout>
+        </div >
+      </div >
+    </AppLayout >
   );
 }

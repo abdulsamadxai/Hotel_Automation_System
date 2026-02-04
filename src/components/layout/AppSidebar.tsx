@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation, useNavigate, Outlet } from "react-router-dom";
+import { useLocation, useNavigate, Outlet, Link } from "react-router-dom";
 import {
   LayoutDashboard,
   CalendarCheck,
@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
+import { useQuery } from "@tanstack/react-query";
+import { mockData } from "@/lib/mockData";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -111,9 +113,20 @@ function MenuGroup({ label, items, defaultOpen = true }: MenuGroupProps) {
 // Export the sidebar component so AppLayout can use it
 export function AppSidebar() {
   const { state } = useSidebar();
-  const { user, role, signOut } = useAuth();
+  const { user, role, signOut, hotelId } = useAuth();
   const navigate = useNavigate();
   const isCollapsed = state === "collapsed";
+
+  const { data: hotel } = useQuery({
+    queryKey: ['hotel-info', hotelId],
+    queryFn: async () => {
+      if (!hotelId) return null;
+      // Return mock hotel data
+      await new Promise(resolve => setTimeout(resolve, 50));
+      return mockData.hotels.find(h => h.id === hotelId) || mockData.hotels[0];
+    },
+    enabled: !!hotelId
+  });
 
   const handleSignOut = async () => {
     await signOut();
@@ -126,15 +139,17 @@ export function AppSidebar() {
   };
 
   const mainMenuItems = [
-    { title: "Dashboard", url: "/", icon: LayoutDashboard },
-    { title: "Bookings", url: "/bookings", icon: CalendarCheck },
-    { title: "Rooms", url: "/rooms", icon: Bed },
-    { title: "Guests", url: "/guests", icon: Users },
-  ];
+    ...(role !== 'housekeeping' ? [
+      { title: "Dashboard", url: "/", icon: LayoutDashboard },
+      { title: "Bookings", url: "/bookings", icon: CalendarCheck },
+      { title: "Rooms", url: "/rooms", icon: Bed },
+      { title: "Guests", url: "/guests", icon: Users },
+    ] : []),
+  ].filter(Boolean);
 
   const operationsItems = [
     { title: "Housekeeping", url: "/housekeeping", icon: ClipboardList },
-    { title: "Staff & Tasks", url: "/staff", icon: Users },
+    ...(role !== 'housekeeping' ? [{ title: "Staff & Tasks", url: "/staff", icon: Users }] : []),
   ];
 
   const financeItems = [
@@ -148,7 +163,42 @@ export function AppSidebar() {
     ...(role !== 'housekeeping' ? [{ title: "Alerts", url: "/alerts", icon: Bell }] : []),
     ...(role === 'super_admin' ? [{ title: "Event Logs", url: "/logs", icon: FileText }] : []),
     ...(role === 'owner' || role === 'super_admin' ? [{ title: "Settings", url: "/settings", icon: Settings }] : []),
+
   ].filter(Boolean);
+
+  // STRICT FILTER: If housekeeping, force only operations items
+  if (role === 'housekeeping') {
+    return (
+      <Sidebar collapsible="icon" className="border-r border-sidebar-border">
+        <SidebarHeader className="p-4">
+          {/* Same header as below but simplified or identical */}
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-status-warning/20 text-status-warning font-bold text-lg shadow-glow overflow-hidden shrink-0">
+              <ClipboardList className="h-5 w-5" />
+            </div>
+            {!isCollapsed && (
+              <div className="flex flex-col">
+                <span className="font-bold text-foreground">Housekeeping</span>
+                <span className="text-[10px] text-muted-foreground uppercase">Task View</span>
+              </div>
+            )}
+          </div>
+        </SidebarHeader>
+        <SidebarContent className="px-2">
+          <MenuGroup
+            label="Tasks"
+            items={[{ title: "My Tasks", url: "/housekeeping", iconComp: <ClipboardList className="h-4 w-4" /> }]}
+          />
+        </SidebarContent>
+        <SidebarFooter className="p-4">
+          <Button variant="ghost" className="w-full gap-2 text-muted-foreground hover:text-destructive" onClick={handleSignOut}>
+            <LogOut className="h-4 w-4" />
+            {!isCollapsed && "Sign Out"}
+          </Button>
+        </SidebarFooter>
+      </Sidebar>
+    );
+  }
 
   const renderIcon = (Icon: any) => {
     if (!Icon) return <LayoutDashboard className="h-4 w-4 shrink-0" />;
@@ -158,47 +208,47 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
       <SidebarHeader className="p-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-lg shadow-glow">
-            <Building2 className="h-5 w-5" />
+        <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-lg shadow-glow overflow-hidden shrink-0">
+            {hotel?.logo_url ? (
+              <img src={hotel.logo_url} alt={hotel.name} className="h-full w-full object-cover" />
+            ) : (
+              <Building2 className="h-5 w-5" />
+            )}
           </div>
           {!isCollapsed && (
-            <div className="flex flex-col">
-              <span className="font-bold text-foreground">Autopilot ONE</span>
-              <span className="text-[10px] text-muted-foreground uppercase tracking-widest">
+            <div className="flex flex-col overflow-hidden">
+              <span className="font-bold text-foreground truncate">
+                {hotel?.name || "Autopilot ONE"}
+              </span>
+              <span className="text-[10px] text-muted-foreground uppercase tracking-widest truncate">
                 Hotel Operating System
               </span>
             </div>
           )}
-        </div>
+        </Link>
       </SidebarHeader>
 
       <SidebarContent className="px-2">
-        {role !== 'housekeeping' && (
-          <MenuGroup
-            label="Main"
-            items={mainMenuItems.map(i => ({ ...i, iconComp: renderIcon(i.icon) }))}
-            defaultOpen
-          />
-        )}
+        <MenuGroup
+          label="Main"
+          items={mainMenuItems.map(i => ({ ...i, iconComp: renderIcon(i.icon) }))}
+          defaultOpen
+        />
 
         <MenuGroup
           label="Operations"
-          items={(role === 'housekeeping' ? [operationsItems[0]] : operationsItems).map(i => ({ ...i, iconComp: renderIcon(i.icon) }))}
+          items={operationsItems.map(i => ({ ...i, iconComp: renderIcon(i.icon) }))}
         />
 
-        {role !== 'housekeeping' && (
-          <>
-            <MenuGroup
-              label="Finance"
-              items={financeItems.map(i => ({ ...i, iconComp: renderIcon(i.icon) }))}
-            />
-            <MenuGroup
-              label="System"
-              items={systemItems.map(i => ({ ...i, iconComp: renderIcon(i.icon) }))}
-            />
-          </>
-        )}
+        <MenuGroup
+          label="Finance"
+          items={financeItems.map(i => ({ ...i, iconComp: renderIcon(i.icon) }))}
+        />
+        <MenuGroup
+          label="System"
+          items={systemItems.map(i => ({ ...i, iconComp: renderIcon(i.icon) }))}
+        />
       </SidebarContent>
 
       <SidebarFooter className="p-4 space-y-3">

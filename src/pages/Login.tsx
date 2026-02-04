@@ -66,15 +66,26 @@ export default function Login() {
     const { error } = await signIn(email, password, isStaff ? hotelCode : null);
 
     if (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Login failed',
-        description: error.message,
-      });
+      if (error.message.includes("Email not confirmed")) {
+        toast({
+          variant: 'default',
+          title: 'Verification Required',
+          description: 'Please check your email to verify your account before logging in.',
+          className: 'bg-status-warning text-status-warning-foreground border-status-warning'
+        });
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Login failed',
+          description: error.message === "Invalid login credentials"
+            ? "Invalid email or password. If you just signed up, please check your email for verification."
+            : error.message,
+        });
+      }
     } else {
       toast({
         title: 'Welcome back!',
-        description: `Logged in as ${role.replace('_', ' ')}`,
+        description: `Logged in as ${(role || 'user').replace('_', ' ')}`,
       });
       navigate('/');
     }
@@ -199,7 +210,7 @@ export default function Login() {
           <div className="mt-6 text-center text-sm">
             <span className="text-muted-foreground">Don't have an account? </span>
             <Link to="/signup" className="text-primary hover:underline font-medium">
-              Sign up
+              Sign up as Owner
             </Link>
           </div>
         </div>

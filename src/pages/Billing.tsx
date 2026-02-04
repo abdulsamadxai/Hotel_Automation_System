@@ -39,8 +39,6 @@ import {
   Mail,
   Printer
 } from "lucide-react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useGuests } from "@/hooks/useGuests";
 import { useBookings } from "@/hooks/useBookings";
@@ -49,117 +47,7 @@ import { useCurrency } from "@/contexts/AppSettingsContext";
 import { formatAndConvert } from "@/utils/currency";
 import { useAuth } from "@/hooks/useAuth";
 import { format, isToday } from "date-fns";
-
-
-interface LineItem {
-  description: string;
-  amount: number;
-  quantity: number;
-  type: "charge" | "service" | "tax" | "discount";
-}
-
-interface Invoice {
-  id: string;
-  invoice_number: string;
-  guest_id: string | null;
-  booking_id: string | null;
-  amount: number;
-  amount_paid: number;
-  status: string;
-  due_date: string | null;
-  paid_at: string | null;
-  created_at: string;
-  line_items: LineItem[];
-  payment_method?: string;
-  notes?: string;
-  guest?: { name: string } | null;
-  booking?: { room?: { number: string } | null } | null;
-}
-
-function useInvoices() {
-  return useQuery({
-    queryKey: ["invoices"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("invoices")
-        .select("*, guest:guests(name), booking:bookings(room:rooms(number))")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      // @ts-ignore
-      return data as Invoice[];
-    },
-  });
-}
-
-// ... (skipping unchanged lines) ...
-
-function useCreateInvoice() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (invoice: {
-      guest_id?: string;
-      booking_id?: string;
-      amount: number;
-      amount_paid: number;
-      due_date?: string;
-      line_items: LineItem[];
-      status: string;
-    }) => {
-      const { data: invoiceNumber } = await supabase.rpc("generate_invoice_number");
-      const { data, error } = await supabase
-        .from("invoices")
-        .insert([{
-          ...invoice,
-          invoice_number: invoiceNumber || `INV-${Date.now()}`,
-        }])
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      toast({ title: "Invoice created successfully" });
-    },
-    onError: (error) => {
-      toast({ title: "Error creating invoice", description: error.message, variant: "destructive" });
-    },
-  });
-}
-
-function useUpdateInvoice() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Partial<Invoice> }) => {
-      const { data, error } = await supabase
-        .from("invoices")
-        .update(updates)
-        .eq("id", id)
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      toast({ title: "Invoice updated" });
-    },
-  });
-}
-
-function useDeleteInvoice() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("invoices").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      toast({ title: "Invoice deleted" });
-    },
-  });
-}
+import { useInvoices, useCreateInvoice, useUpdateInvoice, useDeleteInvoice, type Invoice, type LineItem } from "@/hooks/useInvoices";
 
 export default function Billing() {
   const { data: invoices = [], isLoading } = useInvoices();
@@ -196,19 +84,24 @@ export default function Billing() {
   };
 
   const handleEmail = async (invoice: Invoice) => {
+    if (!invoice.guest?.name) {
+      toast({ title: "Recipient missing", description: "This invoice is not linked to a guest.", variant: "destructive" });
+      return;
+    }
+
     setIsEmailing(true);
     toast({
-      title: "Sending Invoice...",
-      description: `Drafting email to ${invoice.guest?.name || 'guest'}...`,
+      title: "Generating PDF...",
+      description: `Preparing invoice #${invoice.invoice_number} for delivery.`,
     });
 
-    // Simulate network delay
-    await new Promise(r => setTimeout(r, 1500));
+    // Simulate PDF generation and transport
+    await new Promise(r => setTimeout(r, 2000));
 
     setIsEmailing(false);
     toast({
       title: "Invoice Sent Successfully",
-      description: `Invoice ${invoice.invoice_number} has been delivered to ${invoice.guest?.name || 'the guest'}.`,
+      description: `A PDF version of invoice ${invoice.invoice_number} has been sent to ${invoice.guest?.name}.`,
     });
   };
 
@@ -765,6 +658,10 @@ export default function Billing() {
             )}
             <DialogFooter className="print:hidden mt-6">
               <Button variant="outline" onClick={() => setIsPreviewOpen(false)}>Close Preview</Button>
+              <Button variant="outline" className="gap-2" onClick={() => handleEmail(selectedInvoice)} disabled={isEmailing}>
+                {isEmailing ? <Loader2 className="animate-spin h-4 w-4" /> : <Mail className="h-4 w-4" />}
+                Send to Guest Email
+              </Button>
               <Button onClick={() => window.print()} className="gap-2">
                 <Printer className="h-4 w-4" /> Print PDF
               </Button>

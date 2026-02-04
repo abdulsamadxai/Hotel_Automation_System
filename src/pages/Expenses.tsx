@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,26 +28,19 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Plus, Search, DollarSign, Wallet, FileText, Loader2, Trash2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useCurrency } from "@/contexts/AppSettingsContext";
 import { formatAndConvert } from "@/utils/currency";
 import { toast } from "@/hooks/use-toast";
-
-interface Expense {
-    id: string;
-    amount: number;
-    category: string;
-    description: string;
-    expense_date: string;
-    created_at: string;
-}
+import { useExpenses, useCreateExpense, useDeleteExpense } from "@/hooks/useExpenses";
 
 export default function Expenses() {
-    const { hotelId, user } = useAuth();
+    const { hotelId, user, role } = useAuth();
+
+    if (role !== 'owner' && role !== 'super_admin') {
+        return <Navigate to="/" replace />;
+    }
     const { currency } = useCurrency();
-    const queryClient = useQueryClient();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
 
@@ -54,75 +48,32 @@ export default function Expenses() {
         amount: "",
         category: "maintenance",
         description: "",
-        expense_date: new Date().toISOString().split('T')[0],
+        date: new Date().toISOString().split('T')[0],
     });
 
-    const { data: expenses = [], isLoading } = useQuery({
-        queryKey: ['expenses', hotelId],
-        queryFn: async () => {
-            const { data, error } = await supabase
-                .from('expenses')
-                .select('*')
-                .order('expense_date', { ascending: false });
+    const { data: expenses = [], isLoading } = useExpenses();
+    const createExpense = useCreateExpense();
+    const deleteExpense = useDeleteExpense();
 
-            if (error) throw error;
-            return data as Expense[];
-        },
-        enabled: !!hotelId,
-    });
-
-    const createExpense = useMutation({
-        mutationFn: async (newExpense: any) => {
-            const { data, error } = await supabase
-                .from('expenses')
-                .insert([{
-                    ...newExpense,
-                    hotel_id: hotelId,
-                    recorded_by: user?.id,
-                }])
-                .select()
-                .single();
-
-            if (error) throw error;
-            return data;
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['expenses'] });
-            setIsDialogOpen(false);
-            setFormData({
-                amount: "",
-                category: "maintenance",
-                description: "",
-                expense_date: new Date().toISOString().split('T')[0],
-            });
-            toast({ title: "Expense recorded successfully" });
-        },
-        onError: (error: any) => {
-            toast({
-                title: "Failed to record expense",
-                description: error.message,
-                variant: "destructive",
-            });
-        },
-    });
-
-    const deleteExpense = useMutation({
-        mutationFn: async (id: string) => {
-            const { error } = await supabase
-                .from('expenses')
-                .delete()
-                .eq('id', id);
-            if (error) throw error;
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['expenses'] });
-            toast({ title: "Expense deleted" });
-        },
-    });
+    const handleCreateExpense = async () => {
+        await createExpense.mutateAsync({
+            amount: parseFloat(formData.amount),
+            category: formData.category,
+            description: formData.description,
+            date: formData.date
+        });
+        setIsDialogOpen(false);
+        setFormData({
+            amount: "",
+            category: "maintenance",
+            description: "",
+            date: new Date().toISOString().split('T')[0],
+        });
+    };
 
     const filteredExpenses = expenses.filter(e =>
-        e.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        e.category.toLowerCase().includes(searchTerm.toLowerCase())
+        (e.description || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (e.category || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
@@ -191,8 +142,8 @@ export default function Expenses() {
                                     <Label>Date</Label>
                                     <Input
                                         type="date"
-                                        value={formData.expense_date}
-                                        onChange={(e) => setFormData({ ...formData, expense_date: e.target.value })}
+                                        value={formData.date}
+                                        onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                                     />
                                 </div>
                                 <div className="space-y-2">
@@ -205,7 +156,7 @@ export default function Expenses() {
                                 </div>
                                 <Button
                                     className="w-full mt-2"
-                                    onClick={() => createExpense.mutate(formData)}
+                                    onClick={handleCreateExpense}
                                     disabled={!formData.amount || createExpense.isPending}
                                 >
                                     {createExpense.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Expense"}
@@ -234,7 +185,7 @@ export default function Expenses() {
                         <CardContent>
                             <div className="text-2xl font-bold">
                                 {formatAndConvert(expenses
-                                    .filter(e => new Date(e.expense_date).getMonth() === new Date().getMonth())
+                                    .filter(e => new Date(e.date).getMonth() === new Date().getMonth())
                                     .reduce((sum, e) => sum + Number(e.amount), 0), currency)}
                             </div>
                             <p className="text-xs text-muted-foreground">Current month</p>
@@ -278,7 +229,7 @@ export default function Expenses() {
                         <TableBody>
                             {filteredExpenses.map((expense) => (
                                 <TableRow key={expense.id}>
-                                    <TableCell>{expense.expense_date}</TableCell>
+                                    <TableCell>{expense.date}</TableCell>
                                     <TableCell className="capitalize">{expense.category}</TableCell>
                                     <TableCell>{expense.description || "-"}</TableCell>
                                     <TableCell className="text-right font-medium text-destructive">

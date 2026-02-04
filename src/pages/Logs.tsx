@@ -30,9 +30,9 @@ export default function Logs() {
   const [searchTerm, setSearchTerm] = useState("");
 
   const filteredLogs = logs.filter(log =>
-    log.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    log.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    log.event_name.toLowerCase().includes(searchTerm.toLowerCase())
+    (log.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (log.description || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (log.event_name || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleDelete = async (id: string) => {

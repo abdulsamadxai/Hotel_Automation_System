@@ -1,20 +1,28 @@
-
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { mockStore } from "@/lib/mockStore";
 import { toast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 
 export interface Message {
     id: string;
     guest_id: string;
-    content: string;
-    direction: "inbound" | "outbound";
-    channel: "email" | "sms" | "whatsapp" | "internal";
-    status: "sent" | "delivered" | "read" | "failed";
+    guest_name?: string;
+    guest_email?: string;
+    guest_phone?: string;
+    subject?: string;
+    content?: string;
+    message?: string;
+    direction?: "inbound" | "outbound";
+    channel?: "email" | "sms" | "whatsapp" | "internal";
+    status: "sent" | "delivered" | "read" | "failed" | "pending" | "resolved";
+    priority?: "low" | "medium" | "high";
+    assigned_to?: string | null;
     created_at: string;
+    updated_at?: string;
     guest?: {
         name: string;
         email: string;
-        room_number?: string; // specific logic might be needed to join room
+        room_number?: string;
     };
 }
 
@@ -27,95 +35,77 @@ export interface Conversation {
     channel: "email" | "sms" | "whatsapp" | "internal";
 }
 
-// Fetch all messages for a specific guest
 export function useMessages(guestId: string | null) {
-    return useQuery({
-        queryKey: ["messages", guestId],
-        queryFn: async () => {
-            if (!guestId) return [];
-            // @ts-ignore
-            const { data, error } = await supabase
-                .from("messages") // Table not in types yet
-                .select("*")
-                .eq("guest_id", guestId)
-                .order("created_at", { ascending: true });
+    const { hotelId } = useAuth();
 
-            if (error) throw error;
-            return data as Message[];
+    return useQuery({
+        queryKey: ["messages", guestId, hotelId],
+        queryFn: async () => {
+            if (!guestId || !hotelId) return [];
+            const allMessages = await mockStore.messages.getAll(hotelId);
+            return allMessages.filter(m => m.guest_id === guestId);
         },
-        enabled: !!guestId,
+        enabled: !!guestId && !!hotelId,
     });
 }
 
-// Fetch list of "Conversations" (grouped by guest)
-// Note: Supabase doesn't support complex GROUP BY in client easily, 
-// so we might fetch all latest messages or use an RPC. 
-// For now, we'll fetch unique guests who have messages.
 export function useConversations() {
-    return useQuery({
-        queryKey: ["conversations"],
-        queryFn: async () => {
-            // enhanced query to get guests with their latest message
-            const { data, error } = await supabase
-                .from("guests")
-                .select(`
-          id, 
-          name, 
-          email,
-          messages (
-            id, content, created_at, direction, status, channel
-          )
-        `);
+    const { hotelId } = useAuth();
 
-            if (error) throw error;
+    return useQuery({
+        queryKey: ["conversations", hotelId],
+        queryFn: async () => {
+            if (!hotelId) return [];
+            const messages = await mockStore.messages.getAll(hotelId);
+            const guests = await mockStore.guests.getAll(hotelId);
+
+            // Group messages by guest
+            const conversationMap = new Map<string, Message[]>();
+            messages.forEach(msg => {
+                if (!conversationMap.has(msg.guest_id)) {
+                    conversationMap.set(msg.guest_id, []);
+                }
+                conversationMap.get(msg.guest_id)!.push(msg);
+            });
 
             // Transform into conversation format
-            // @ts-ignore
-            const conversations: Conversation[] = data
-                .map((guest: any) => {
-                    const msgs = (guest.messages || []) as Message[];
-                    if (msgs.length === 0) return null;
+            const conversations: Conversation[] = [];
+            conversationMap.forEach((msgs, guestId) => {
+                const guest = guests.find(g => g.id === guestId);
+                if (!guest) return;
 
-                    // Sort desc
-                    msgs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-                    const last = msgs[0];
+                msgs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                const last = msgs[0];
 
-                    return {
-                        guest_id: guest.id,
-                        guest_name: guest.name,
-                        last_message: last.content,
-                        last_message_at: last.created_at,
-                        unread_count: msgs.filter(m => m.direction === 'inbound' && m.status !== 'read').length,
-                        channel: last.channel
-                    };
-                })
-                .filter((c: any): c is Conversation => c !== null)
-                .sort((a: any, b: any) => new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime());
+                conversations.push({
+                    guest_id: guestId,
+                    guest_name: guest.name,
+                    last_message: last.content || last.message || '',
+                    last_message_at: last.created_at,
+                    unread_count: msgs.filter(m => m.direction === 'inbound' && m.status !== 'read').length,
+                    channel: last.channel || 'internal'
+                });
+            });
 
-            return conversations;
+            return conversations.sort((a, b) =>
+                new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
+            );
         },
+        enabled: !!hotelId,
     });
 }
 
 export function useSendMessage() {
     const queryClient = useQueryClient();
+    const { hotelId } = useAuth();
+
     return useMutation({
         mutationFn: async (msg: { guest_id: string; content: string; channel: string }) => {
-            // @ts-ignore
-            const { data, error } = await supabase
-                .from("messages")
-                .insert({
-                    guest_id: msg.guest_id,
-                    content: msg.content,
-                    channel: msg.channel,
-                    direction: 'outbound',
-                    status: 'sent'
-                })
-                .select()
-                .single();
-
-            if (error) throw error;
-            return data;
+            return await mockStore.messages.create({
+                ...msg,
+                direction: 'outbound',
+                status: 'sent'
+            }, hotelId);
         },
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: ["messages", variables.guest_id] });
@@ -125,21 +115,23 @@ export function useSendMessage() {
     });
 }
 
-export function useDeleteConversation() { // Just deletes all messages for a guest for now
+export function useDeleteConversation() {
     const queryClient = useQueryClient();
+
     return useMutation({
         mutationFn: async (guestId: string) => {
-            // @ts-ignore
-            const { error } = await supabase
-                .from("messages")
-                .delete()
-                .eq("guest_id", guestId);
-            if (error) throw error;
+            // Delete all messages for this guest - we'll need a special method
+            const { hotelId } = useAuth();
+            const messages = await mockStore.messages.getAll(hotelId);
+            const guestMessages = messages.filter(m => m.guest_id === guestId);
+            for (const msg of guestMessages) {
+                await mockStore.messages.delete(msg.id);
+            }
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["conversations"] });
             queryClient.invalidateQueries({ queryKey: ["messages"] });
             toast({ title: "Conversation deleted" });
         }
-    })
+    });
 }

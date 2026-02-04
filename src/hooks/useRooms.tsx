@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { mockStore } from "@/lib/mockStore";
 import { toast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 
 export type RoomStatus = "available" | "occupied" | "dirty" | "cleaning" | "maintenance";
 export type RoomType = "standard" | "deluxe" | "suite" | "penthouse";
@@ -12,39 +13,35 @@ export interface Room {
   floor: number;
   status: RoomStatus;
   capacity: number;
-  rate: number;
+  price_per_night?: number;
+  rate?: number;
   amenities: string[];
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
 export function useRooms() {
+  const { hotelId } = useAuth();
+
   return useQuery({
-    queryKey: ["rooms"],
+    queryKey: ["rooms", hotelId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("rooms")
-        .select("*")
-        .order("number");
-      
-      if (error) throw error;
-      return data as Room[];
+      if (!hotelId) return [];
+      return await mockStore.rooms.getAll(hotelId);
     },
+    enabled: !!hotelId,
   });
 }
 
 export function useRoom(id: string) {
+  const { hotelId } = useAuth();
+
   return useQuery({
     queryKey: ["rooms", id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("rooms")
-        .select("*")
-        .eq("id", id)
-        .maybeSingle();
-      
-      if (error) throw error;
-      return data as Room | null;
+      if (!hotelId) return null;
+      const rooms = await mockStore.rooms.getAll(hotelId);
+      return rooms.find(r => r.id === id) || null;
     },
     enabled: !!id,
   });
@@ -52,23 +49,17 @@ export function useRoom(id: string) {
 
 export function useCreateRoom() {
   const queryClient = useQueryClient();
+  const { hotelId } = useAuth();
 
   return useMutation({
     mutationFn: async (room: Omit<Room, "id" | "created_at" | "updated_at">) => {
-      const { data, error } = await supabase
-        .from("rooms")
-        .insert(room)
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data;
+      return await mockStore.rooms.create(room, hotelId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["rooms"] });
       toast({ title: "Room created successfully" });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({ title: "Error creating room", description: error.message, variant: "destructive" });
     },
   });
@@ -79,21 +70,13 @@ export function useUpdateRoom() {
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<Room> & { id: string }) => {
-      const { data, error } = await supabase
-        .from("rooms")
-        .update(updates)
-        .eq("id", id)
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data;
+      return await mockStore.rooms.update(id, updates);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["rooms"] });
       toast({ title: "Room updated successfully" });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({ title: "Error updating room", description: error.message, variant: "destructive" });
     },
   });
@@ -104,18 +87,13 @@ export function useDeleteRoom() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("rooms")
-        .delete()
-        .eq("id", id);
-      
-      if (error) throw error;
+      await mockStore.rooms.delete(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["rooms"] });
       toast({ title: "Room deleted successfully" });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({ title: "Error deleting room", description: error.message, variant: "destructive" });
     },
   });

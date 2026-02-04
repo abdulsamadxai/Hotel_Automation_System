@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { mockStore } from "@/lib/mockStore";
 import { toast } from "@/hooks/use-toast";
 
 export type TaskStatus = "pending" | "in_progress" | "completed" | "overdue";
@@ -8,46 +8,58 @@ export type TaskPriority = "low" | "medium" | "high";
 
 export interface HousekeepingTask {
   id: string;
-  task_number: string;
+  task_number?: string;
   room_id: string;
-  booking_id: string | null;
+  booking_id?: string | null;
   type: TaskType;
   status: TaskStatus;
   priority: TaskPriority;
-  assignee_id: string | null;
-  automation_triggered: boolean;
-  notes: string | null;
-  due_at: string | null;
-  started_at: string | null;
-  completed_at: string | null;
+  assignee_id?: string | null;
+  assigned_to?: string | null;
+  automation_triggered?: boolean;
+  notes?: string | null;
+  description?: string | null;
+  due_at?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
   // Joined fields
   room?: { id: string; number: string; type: string } | null;
-  assignee?: { id: string; name: string } | null;
+  assignee?: { id: string; name?: string; full_name?: string } | null;
 }
 
-export function useHousekeepingTasks() {
-  return useQuery({
-    queryKey: ["housekeeping"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("housekeeping_tasks")
-        .select(`
-          *,
-          room:rooms(id, number, type),
-          assignee:staff_members(id, name)
-        `)
-        .order("created_at", { ascending: false });
+import { useAuth } from "@/hooks/useAuth";
 
-      if (error) throw error;
-      return data as HousekeepingTask[];
+export function useHousekeepingTasks() {
+  const { hotelId, role, user } = useAuth();
+
+  return useQuery({
+    queryKey: ["housekeeping", hotelId, role, user?.id],
+    queryFn: async () => {
+      if (!hotelId) return [];
+
+      let tasks = await mockStore.housekeeping.getAll(hotelId);
+
+      // Role isolation: Housekeeping only sees their own tasks
+      if (role === 'housekeeping') {
+        const staff = await mockStore.staff.getByUserId(user?.id);
+        if (staff) {
+          tasks = tasks.filter(t => t.assigned_to === staff.id || t.assignee_id === staff.id);
+        } else {
+          return []; // No staff record, no access
+        }
+      }
+
+      return tasks;
     },
+    enabled: !!hotelId,
   });
 }
 
 export function useCreateTask() {
   const queryClient = useQueryClient();
+  const { hotelId } = useAuth();
 
   return useMutation({
     mutationFn: async (task: {
@@ -55,30 +67,22 @@ export function useCreateTask() {
       type: TaskType;
       priority: TaskPriority;
       assignee_id?: string;
+      assigned_to?: string;
       notes?: string;
+      description?: string;
       due_at?: string;
     }) => {
-      const taskNumber = `HK-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`;
-
-      const { data, error } = await supabase
-        .from("housekeeping_tasks")
-        .insert({
-          ...task,
-          task_number: taskNumber,
-          status: "pending" as TaskStatus,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+      return await mockStore.housekeeping.create({
+        ...task,
+        status: "pending" as TaskStatus,
+      }, hotelId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["housekeeping"] });
       queryClient.invalidateQueries({ queryKey: ["activity"] });
       toast({ title: "Task created successfully" });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({ title: "Error creating task", description: error.message, variant: "destructive" });
     },
   });
@@ -89,15 +93,7 @@ export function useUpdateTaskStatus() {
 
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: TaskStatus }) => {
-      const { data, error } = await supabase
-        .from("housekeeping_tasks")
-        .update({ status })
-        .eq("id", id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+      return await mockStore.housekeeping.update(id, { status });
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["housekeeping"] });
@@ -111,16 +107,9 @@ export function useUpdateTaskStatus() {
         overdue: "Task marked as overdue",
       };
 
-      // AUTOMATION: If task is completed, mark the room as available
-      if (data.status === 'completed' && data.room_id) {
-        supabase.from('rooms').update({ status: 'available' }).eq('id', data.room_id).then(() => {
-          queryClient.invalidateQueries({ queryKey: ["rooms"] });
-        });
-      }
-
       toast({ title: statusMessages[data.status as TaskStatus] });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({ title: "Error updating task", description: error.message, variant: "destructive" });
     },
   });
@@ -131,21 +120,13 @@ export function useAssignTask() {
 
   return useMutation({
     mutationFn: async ({ id, assignee_id }: { id: string; assignee_id: string }) => {
-      const { data, error } = await supabase
-        .from("housekeeping_tasks")
-        .update({ assignee_id })
-        .eq("id", id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+      return await mockStore.housekeeping.update(id, { assigned_to: assignee_id, assignee_id });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["housekeeping"] });
       toast({ title: "Task assigned successfully" });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({ title: "Error assigning task", description: error.message, variant: "destructive" });
     },
   });
@@ -156,15 +137,7 @@ export function useUpdateTask() {
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: { id: string;[key: string]: any }) => {
-      const { data, error } = await supabase
-        .from("housekeeping_tasks")
-        .update(updates)
-        .eq("id", id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+      return await mockStore.housekeeping.update(id, updates);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["housekeeping"] });
@@ -183,18 +156,13 @@ export function useDeleteTask() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("housekeeping_tasks")
-        .delete()
-        .eq("id", id);
-
-      if (error) throw error;
+      await mockStore.housekeeping.delete(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["housekeeping"] });
       toast({ title: "Task deleted successfully" });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({ title: "Error deleting task", description: error.message, variant: "destructive" });
     },
   });

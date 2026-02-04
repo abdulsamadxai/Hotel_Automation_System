@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { KPICard } from "@/components/dashboard/KPICard";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
@@ -20,6 +21,8 @@ import {
   Loader2,
   LogIn,
   LogOut,
+  Copy,
+  CheckCircle2,
 } from "lucide-react";
 import { useRooms } from "@/hooks/useRooms";
 import { useBookings } from "@/hooks/useBookings";
@@ -51,102 +54,14 @@ import { useGlobalStaff } from "@/hooks/useStaff";
 import { useInvoices } from "@/hooks/useInvoices";
 import { useCurrency } from "@/contexts/AppSettingsContext";
 
-// SaaS Revenue Component for Owner only
-function SaaSRevenueDashboard({ hotelId }: { hotelId: string | null }) {
-  const { data: invoices = [] } = useInvoices();
+import { SaaSRevenueCard } from "@/components/dashboard/SaaSRevenueCard";
+import { SuperAdminHotelTable } from "@/components/dashboard/SuperAdminHotelTable";
+import { GlobalUsersTable } from "@/components/dashboard/GlobalUsersTable";
+import { HotelCodeDisplay } from "@/components/dashboard/HotelCodeDisplay";
 
-  // Logic: Platform charges 10% of revenue + $50 maintenance fee per paid invoice (simplified)
-  const totalSaaSRevenue = invoices
-    .filter(i => i.status === 'paid')
-    .reduce((acc, inv) => acc + (Number(inv.amount) * 0.1) + 50, 0);
-
-  return (
-    <div className="glass-card p-6 border-status-success/20 bg-status-success/5 animate-pulse-slow">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <TrendingUp className="h-5 w-5 text-status-success" />
-          <h3 className="font-bold text-lg">SaaS Platform Revenue</h3>
-        </div>
-        <Badge variant="outline" className="bg-status-success/10 text-status-success border-status-success/20">
-          Owner Only
-        </Badge>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <p className="text-sm text-muted-foreground italic">Platform Earnings</p>
-          <p className="text-2xl font-bold text-status-success">
-            {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(totalSaaSRevenue)}
-          </p>
-        </div>
-        <div className="text-right">
-          <p className="text-sm text-muted-foreground italic">Hotel Assignment</p>
-          <p className="text-xs font-mono">{hotelId || 'Global Network'}</p>
-        </div>
-      </div>
-      <p className="mt-4 text-[10px] text-muted-foreground uppercase tracking-widest text-center opacity-60">
-        Charges: 10% Platform + $50/Invoice Maintenance
-      </p>
-    </div>
-  );
-}
-
-// Global Users Table for Super Admin
-function GlobalUsersTable() {
-  const { data: staff = [], isLoading } = useGlobalStaff();
-
-  if (isLoading) return <div className="p-8 flex justify-center"><Loader2 className="animate-spin" /></div>;
-
-  return (
-    <Table>
-      <TableHeader className="bg-muted/50">
-        <TableRow>
-          <TableHead>User Name</TableHead>
-          <TableHead>Email</TableHead>
-          <TableHead>Role</TableHead>
-          <TableHead>Hotel Property</TableHead>
-          <TableHead>Access Code</TableHead>
-          <TableHead>Status</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {staff.filter(Boolean).map((member: any, idx: number) => (
-          <TableRow key={member?.id || idx} className="hover:bg-primary/5 transition-colors">
-            <TableCell className="font-medium">{member?.name || "System"}</TableCell>
-            <TableCell>{member?.email || "—"}</TableCell>
-            <TableCell>
-              <div className="flex items-center gap-2">
-                {member?.saas_role === 'super_admin' && <ShieldCheck className="h-3 w-3 text-primary" />}
-                {member?.saas_role === 'owner' && <UserCircle className="h-3 w-3 text-status-success" />}
-                {member?.saas_role === 'manager' && <Briefcase className="h-3 w-3 text-status-info" />}
-                {member?.saas_role === 'housekeeping' && <ClipboardList className="h-3 w-3 text-status-warning" />}
-                <span className="capitalize">{(member?.saas_role || 'user').replace('_', ' ')}</span>
-              </div>
-            </TableCell>
-            <TableCell>
-              {member?.hotels?.name || (member?.saas_role === 'super_admin' ? "System Wide" : "Unassigned")}
-            </TableCell>
-            <TableCell>
-              <code className="bg-primary/5 px-2 py-1 rounded text-xs font-mono font-bold text-primary">
-                {member?.hotels?.access_code || (member?.saas_role === 'super_admin' ? "MASTER" : "N/A")}
-              </code>
-            </TableCell>
-            <TableCell>
-              <Badge variant="outline" className={
-                member?.status === 'on_duty' ? "bg-status-success/15 text-status-success border-status-success/20" :
-                  "bg-muted text-muted-foreground"
-              }>
-                {(member?.status || 'inactive').replace('_', ' ')}
-              </Badge>
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  );
-}
 
 export default function Dashboard() {
-  const { role, hotelId } = useAuth();
+  const { role, hotelId, selectedHotelId, setSelectedHotelId } = useAuth();
   const { currency } = useCurrency();
   const [activeFilter, setActiveFilter] = useState<{ type: 'status' | 'booking', value: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -174,8 +89,8 @@ export default function Dashboard() {
   // Filtered Logic
   const filteredRooms = rooms.filter(room => {
     const matchesStatus = activeFilter?.type === 'status' ? room.status === activeFilter.value : true;
-    const matchesSearch = room.number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      room.type.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = (room.number || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (room.type || '').toLowerCase().includes(searchQuery.toLowerCase());
     return matchesStatus && matchesSearch;
   });
 
@@ -258,7 +173,7 @@ export default function Dashboard() {
     setSearchQuery("");
   };
 
-  console.log("Dashboard rendering with role:", role);
+
 
   return (
     <AppLayout>
@@ -283,58 +198,38 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* 1. SUPER ADMIN VIEW */}
-        {role === 'super_admin' && (
+        {/* 1. SUPER ADMIN GLOBAL VIEW (Hotel Selection) */}
+        {role === 'super_admin' && !selectedHotelId && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <KPICard
-                title="Global Hotels"
-                value={adminStats?.hotelCount || 0}
-                subtitle="Total active properties"
-                icon={Building2}
-              />
-              <KPICard
-                title="Global Bookings"
-                value={adminStats?.totalBookings || 0}
-                subtitle="Lifetime transactions"
-                icon={CalendarCheck}
-              />
-              <KPICard
-                title="System Load"
-                value="Optimal"
-                subtitle="All services operational"
-                icon={TrendingUp}
-              />
-              <KPICard
-                title="Total Users"
-                value={guests.length + (adminStats?.hotelCount || 1) * 3}
-                subtitle="Staff & Management"
-                icon={Users}
-              />
+              <KPICard title="Global Hotels" value={adminStats?.hotelCount || 0} icon={Building2} subtitle="Properties" />
+              <KPICard title="Global Bookings" value={adminStats?.totalBookings || 0} icon={CalendarCheck} subtitle="Transactions" />
+              <KPICard title="Platform Health" value="100%" icon={ShieldCheck} subtitle="Status: Good" />
+              <KPICard title="Total Revenue" value={formatAndConvert(finStats.yearly, currency)} icon={DollarSign} subtitle="Platform Wide" />
             </div>
-
-            {/* Global User Management Table */}
-            <div className="glass-card overflow-hidden animate-fade-in border border-white/5 shadow-glow">
-              <div className="p-6 border-b border-white/5 flex items-center justify-between bg-primary/5">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                    <Users className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-lg">Global User Management</h3>
-                    <p className="text-sm text-muted-foreground">Monitoring active staff across all properties</p>
-                  </div>
-                </div>
-              </div>
-              <div className="p-0 overflow-x-auto">
-                <GlobalUsersTable />
-              </div>
+            <SuperAdminHotelTable onSelectHotel={setSelectedHotelId} />
+            <div className="glass-card p-6">
+              <h3 className="font-bold mb-4">Global Network Users</h3>
+              <GlobalUsersTable />
             </div>
           </div>
         )}
 
-        {/* OWNER & SUPER ADMIN FINANCE */}
-        {(role === 'owner' || role === 'super_admin') && (
+        {/* 1b. SUPER ADMIN PROPERTY DASHBOARD (Header toggle) */}
+        {role === 'super_admin' && selectedHotelId && (
+          <div className="flex items-center justify-between bg-primary/10 border border-primary/20 p-4 rounded-xl mb-6">
+            <div className="flex items-center gap-3">
+              <Building2 className="text-primary h-6 w-6" />
+              <span className="font-bold">Viewing Hotel Context: {selectedHotelId}</span>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => setSelectedHotelId(null)} className="gap-2">
+              <LogOut className="h-4 w-4" /> Back to Hotel List
+            </Button>
+          </div>
+        )}
+
+        {/* PROPERTY-SPECIFIC VIEW (SA selected or Owner/Manager) */}
+        {(role === 'owner' || (role === 'super_admin' && selectedHotelId)) && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -347,15 +242,18 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="lg:col-span-1">
-              <SaaSRevenueDashboard hotelId={hotelId} />
+              <SaaSRevenueCard hotelId={selectedHotelId || hotelId} />
+              <div className="mt-4">
+                <HotelCodeDisplay showManageButton={true} />
+              </div>
             </div>
           </div>
         )}
 
-        {/* MANAGER ONLY FINANCE */}
+        {/* MANAGER ONLY FINANCE (Limit to Daily) */}
         {role === 'manager' && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <KPICard title="Daily Revenue" value={formatAndConvert(finStats.today, currency)} icon={DollarSign} subtitle="Daily collection limit" />
+            <KPICard title="Daily Revenue" value={formatAndConvert(finStats.today, currency)} icon={DollarSign} subtitle="Today's Performance" />
             <div onClick={() => setActiveFilter({ type: 'booking', value: 'check_in' })} className="cursor-pointer">
               <KPICard title="Today's Check-ins" value={todayCheckIns} icon={LogIn} subtitle="Guests arriving" />
             </div>
@@ -365,8 +263,8 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* 3. MANAGER / COMMON VIEW */}
-        {(role === 'manager' || role === 'owner' || role === 'super_admin') && (
+        {/* 3. MANAGER / COMMON VIEW (Only if hotel selected or role is not SA) */}
+        {((role === 'manager' || role === 'owner') || (role === 'super_admin' && selectedHotelId)) && (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div
@@ -494,44 +392,8 @@ export default function Dashboard() {
                     isActive: a?.is_active ?? false
                   }))} />
                 ) : (
-                  <div className="glass-card p-6 flex flex-col items-center justify-center text-center space-y-4">
-                    <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                      <Building2 className="h-6 w-6" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold">Hotel Property Instance</h4>
-                      <p className="text-sm text-muted-foreground">
-                        {hotelId ? `ID: ${hotelId.substring(0, 8)}...` : 'Corporate Connection'}
-                      </p>
-                    </div>
-                    <Badge className="bg-primary/20 text-primary border-none">
-                      Operational
-                    </Badge>
-                  </div>
+                  <HotelCodeDisplay showManageButton={true} />
                 )}
-
-                {/* Search / Filter Logic UI */}
-                <div className="glass-card p-6 space-y-4">
-                  <h4 className="font-bold flex items-center gap-2">
-                    <ListChecks className="h-4 w-4 text-primary" />
-                    Availability Engine
-                  </h4>
-                  <div className="space-y-2">
-                    <label className="text-xs font-medium text-muted-foreground">Quick Search</label>
-                    <Input
-                      placeholder="Room number or type..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="bg-muted/30 border-white/5 focus-visible:ring-primary"
-                    />
-                  </div>
-                  <Button className="w-full shadow-glow" onClick={() => console.log("Searching availability...")}>
-                    Verify Full Availability
-                  </Button>
-                  <p className="text-[10px] text-muted-foreground text-center">
-                    Real-time state synchronization active
-                  </p>
-                </div>
               </div>
             </div>
           </>

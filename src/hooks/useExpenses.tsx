@@ -1,47 +1,43 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { mockStore } from "@/lib/mockStore";
 import { toast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 
 export interface Expense {
     id: string;
     amount: number;
     category: string;
     description: string;
-    expense_date: string;
+    date: string;  // Primary field used in mockData
+    expense_date?: string;  // Legacy field for compatibility
+    vendor?: string;
+    created_by?: string;
     created_at: string;
     hotel_id?: string;
     recorded_by?: string;
 }
 
 export function useExpenses(hotelId?: string) {
-    return useQuery({
-        queryKey: ["expenses", hotelId],
-        queryFn: async () => {
-            const { data, error } = await supabase
-                .from("expenses")
-                .select("*")
-                .order("expense_date", { ascending: false });
+    const { hotelId: authHotelId } = useAuth();
+    const targetHotelId = hotelId || authHotelId;
 
-            if (error) throw error;
-            return (data || []) as Expense[];
+    return useQuery({
+        queryKey: ["expenses", targetHotelId],
+        queryFn: async () => {
+            if (!targetHotelId) return [];
+            return await mockStore.expenses.getAll(targetHotelId);
         },
-        enabled: !!hotelId || true, // Allow fetching even without specific ID if needed
+        enabled: !!targetHotelId,
     });
 }
 
 export function useCreateExpense() {
     const queryClient = useQueryClient();
+    const { hotelId } = useAuth();
 
     return useMutation({
         mutationFn: async (expense: Partial<Expense>) => {
-            const { data, error } = await supabase
-                .from("expenses")
-                .insert(expense)
-                .select()
-                .single();
-
-            if (error) throw error;
-            return data;
+            return await mockStore.expenses.create(expense, hotelId);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["expenses"] });
@@ -58,11 +54,7 @@ export function useDeleteExpense() {
 
     return useMutation({
         mutationFn: async (id: string) => {
-            const { error } = await supabase
-                .from("expenses")
-                .delete()
-                .eq("id", id);
-            if (error) throw error;
+            await mockStore.expenses.delete(id);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["expenses"] });

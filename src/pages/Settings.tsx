@@ -1,138 +1,24 @@
+import { useNavigate, Link } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Building2, Users, Bell, Shield, Database, Zap, Sun, Moon, DollarSign, Copy, CheckCircle2, Loader2 } from "lucide-react";
+import { Building2, Users, Bell, Shield, Database, Zap, Loader2, Camera, Copy, CheckCircle2, Image as ImageIcon } from "lucide-react";
 import { useTheme, useCurrency } from "@/contexts/AppSettingsContext";
 import { CURRENCIES, type Currency } from "@/utils/currency";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { mockData } from "@/lib/mockData";
+import { useState, useRef, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "@/hooks/use-toast";
 
-function ThemeSelector() {
-  const { theme, setTheme } = useTheme();
-
-  return (
-    <div className="flex gap-3">
-      <button
-        onClick={() => setTheme('dark')}
-        className={`flex-1 flex items-center justify-center gap-2 p-4 rounded-lg border-2 transition-all ${theme === 'dark'
-          ? 'border-primary bg-primary/10'
-          : 'border-border hover:border-primary/50'
-          }`}
-      >
-        <Moon className="h-5 w-5" />
-        <span className="font-medium">Dark</span>
-      </button>
-      <button
-        onClick={() => setTheme('light')}
-        className={`flex-1 flex items-center justify-center gap-2 p-4 rounded-lg border-2 transition-all ${theme === 'light'
-          ? 'border-primary bg-primary/10'
-          : 'border-border hover:border-primary/50'
-          }`}
-      >
-        <Sun className="h-5 w-5" />
-        <span className="font-medium">Light</span>
-      </button>
-    </div>
-  );
-}
-
-function CurrencySelector() {
-  const { currency, setCurrency } = useCurrency();
-
-  return (
-    <div className="space-y-3">
-      <Select value={currency} onValueChange={(value) => setCurrency(value as Currency)}>
-        <SelectTrigger className="w-full">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {Object.values(CURRENCIES).map((curr) => (
-            <SelectItem key={curr.code} value={curr.code}>
-              <div className="flex items-center gap-2">
-                <span className="font-mono font-bold">{curr.symbol}</span>
-                <span>{curr.name}</span>
-                <span className="text-muted-foreground">({curr.code})</span>
-              </div>
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg">
-        <DollarSign className="h-4 w-4 inline mr-1" />
-        Conversion rate: 1 USD = {CURRENCIES[currency].rate} {currency}
-      </div>
-    </div>
-  );
-}
-
-function HotelCodeDisplay() {
-  const { hotelId } = useAuth();
-  const [copied, setCopied] = useState(false);
-
-  const { data: hotel, isLoading } = useQuery({
-    queryKey: ['hotel-details', hotelId],
-    queryFn: async () => {
-      if (!hotelId) return null;
-      const { data, error } = await supabase
-        .from('hotels')
-        .select('*')
-        .eq('id', hotelId)
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!hotelId,
-  });
-
-  const copyToClipboard = () => {
-    if (hotel?.access_code) {
-      navigator.clipboard.writeText(hotel.access_code);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
-  if (isLoading) return <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading access code...</div>;
-  if (!hotel) return null;
-
-  return (
-    <div className="bg-primary/5 border border-primary/20 rounded-xl p-6 space-y-4 animate-in fade-in slide-in-from-bottom-2">
-      <div className="flex items-center justify-between">
-        <div>
-          <h4 className="font-bold text-lg flex items-center gap-2">
-            <Shield className="h-5 w-5 text-primary" />
-            Hotel Access Code
-          </h4>
-          <p className="text-sm text-muted-foreground">Unique identifier for staff login and secure tenant isolation</p>
-        </div>
-        <div className="bg-background/50 border border-primary/10 px-4 py-2 rounded-lg flex items-center gap-3 shadow-sm">
-          <span className="font-mono text-2xl font-bold tracking-[0.2em] text-primary">
-            {hotel.access_code}
-          </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0 hover:bg-primary/10 transition-colors"
-            onClick={copyToClipboard}
-          >
-            {copied ? <CheckCircle2 className="h-4 w-4 text-status-success" /> : <Copy className="h-4 w-4" />}
-          </Button>
-        </div>
-      </div>
-      <div className="flex items-start gap-2 text-xs text-muted-foreground bg-primary/5 p-3 rounded-lg border border-primary/5">
-        <Zap className="h-3 w-3 mt-0.5 text-primary" />
-        <p>Give this code to your Managers and Housekeeping staff. They will need it along with their email and password to access your hotel property specifically.</p>
-      </div>
-    </div>
-  );
-}
+import { ThemeSelector } from "@/components/dashboard/ThemeSelector";
+import { CurrencySelector } from "@/components/dashboard/CurrencySelector";
+import { HotelCodeDisplay } from "@/components/dashboard/HotelCodeDisplay";
 
 export default function Settings() {
   const { hotelId, role } = useAuth();
@@ -140,12 +26,62 @@ export default function Settings() {
     queryKey: ['hotel-info', hotelId],
     queryFn: async () => {
       if (!hotelId) return null;
-      const { data, error } = await supabase.from('hotels').select('*').eq('id', hotelId).single();
-      if (error) throw error;
-      return data;
+      // Return mock hotel data
+      return mockData.hotels.find(h => h.id === hotelId) || mockData.hotels[0];
     },
     enabled: !!hotelId
   });
+
+  const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // States for form
+  const [hotelName, setHotelName] = useState("");
+  const [hotelLocation, setHotelLocation] = useState("");
+  const [logoUrl, setLogoUrl] = useState("");
+
+  // Sync state when data loads
+  useEffect(() => {
+    if (hotel) {
+      setHotelName(hotel.name || "");
+      setHotelLocation(hotel.location || "");
+      setLogoUrl(hotel.logo_url || "");
+    }
+  }, [hotel]);
+
+  const updateHotel = useMutation({
+    mutationFn: async (updates: { name: string; location: string; logo_url: string }) => {
+      // Mock implementation - in real app would update backend
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return { ...hotel, ...updates };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['hotel-info', hotelId] });
+      toast({ title: "Settings updated", description: "Your hotel branding has been updated successfully." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Update failed", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const handleSave = () => {
+    updateHotel.mutate({
+      name: hotelName || hotel?.name || "",
+      location: hotelLocation || hotel?.location || "",
+      logo_url: logoUrl || hotel?.logo_url || ""
+    });
+  };
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLogoUrl(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   return (
     <AppLayout>
@@ -176,6 +112,7 @@ export default function Settings() {
               <Users className="h-4 w-4" />
               Users
             </TabsTrigger>
+
             <TabsTrigger value="notifications" className="gap-2">
               <Bell className="h-4 w-4" />
               Notifications
@@ -223,37 +160,142 @@ export default function Settings() {
               </div>
 
               <div className="border-t border-white/5 pt-6">
-                <h3 className="text-lg font-semibold mb-4">Hotel Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Hotel Name</Label>
-                    <Input defaultValue={hotel?.name || "Grand Hotel"} className="bg-muted/50" />
+                <h3 className="text-lg font-semibold mb-6">Hotel Branding</h3>
+                <div className="flex flex-col md:flex-row gap-8 items-start">
+                  <div className="relative group">
+                    <div className="h-32 w-32 rounded-2xl bg-primary/10 border-2 border-dashed border-primary/30 flex items-center justify-center overflow-hidden transition-all group-hover:border-primary/60">
+                      {logoUrl || hotel?.logo_url ? (
+                        <img src={logoUrl || hotel?.logo_url} alt="Hotel Logo" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                          <ImageIcon className="h-8 w-8" />
+                          <span className="text-[10px] font-medium">No Logo</span>
+                        </div>
+                      )}
+                    </div>
+                    {(role === 'owner' || role === 'super_admin') && (
+                      <>
+                        <Button
+                          size="icon"
+                          variant="secondary"
+                          className="absolute -bottom-2 -right-2 h-10 w-10 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => fileInputRef.current?.click()}
+                        >
+                          <Camera className="h-4 w-4" />
+                        </Button>
+                        <input
+                          type="file"
+                          ref={fileInputRef}
+                          className="hidden"
+                          accept="image/*"
+                          onChange={handleLogoUpload}
+                        />
+                      </>
+                    )}
                   </div>
-                  <div className="space-y-2">
-                    <Label>Location</Label>
-                    <Input defaultValue={hotel?.location || "Update Location"} className="bg-muted/50" />
+
+                  <div className="flex-1 w-full space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Hotel Name</Label>
+                        <Input
+                          value={hotelName}
+                          onChange={(e) => setHotelName(e.target.value)}
+                          readOnly={role !== 'owner' && role !== 'super_admin'}
+                          className="bg-muted/50 focus:bg-background transition-colors"
+                          placeholder="e.g. Grand Sky Resort"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Location</Label>
+                        <Input
+                          value={hotelLocation}
+                          onChange={(e) => setHotelLocation(e.target.value)}
+                          readOnly={role !== 'owner' && role !== 'super_admin'}
+                          className="bg-muted/50 focus:bg-background transition-colors"
+                          placeholder="e.g. Maldives"
+                        />
+                      </div>
+                    </div>
+
+                    {(role === 'owner' || role === 'super_admin') && (
+                      <div className="pt-2 space-y-2">
+                        <Label className="text-primary font-bold text-xs uppercase">Hotel Unique Access Code (Staff Binding)</Label>
+                        <div className="relative">
+                          <Input
+                            readOnly
+                            value={hotel?.access_code || "Generating..."}
+                            className="bg-primary/5 border-primary/20 font-mono text-lg tracking-widest font-bold pr-24"
+                          />
+                          <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">Read Only</Badge>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 px-2"
+                              onClick={() => {
+                                if (hotel?.access_code) {
+                                  navigator.clipboard.writeText(hotel.access_code);
+                                  toast({ title: "Copied to clipboard" });
+                                }
+                              }}
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground italic">Required for your Managers and Housekeeping staff to log in.</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
 
-              <div className="flex justify-end">
-                <Button className="shadow-lg hover:shadow-primary/20 transition-all">Save Changes</Button>
-              </div>
+              {(role === 'owner' || role === 'super_admin') && (
+                <div className="flex justify-end pt-4 border-t border-white/5">
+                  <Button
+                    className="shadow-lg hover:shadow-primary/20 transition-all gap-2"
+                    onClick={handleSave}
+                    disabled={updateHotel.isPending}
+                  >
+                    {updateHotel.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
+                    {updateHotel.isPending ? "Saving..." : "Save Branding Changes"}
+                  </Button>
+                </div>
+              )}
             </div>
           </TabsContent>
 
+
+
           {/* Users Settings */}
           <TabsContent value="users">
-            <div className="glass-card p-6 space-y-6">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold">User Management</h3>
-                <Button>Add User</Button>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Manage staff accounts and role-based permissions. Users can have roles: Owner, Manager, Housekeeping.
-              </p>
-              <div className="border border-dashed border-border rounded-lg p-8 text-center text-muted-foreground">
-                User management is currently handled in the Staff section.
+            <div className="space-y-6">
+              {(role === 'owner' || role === 'super_admin') && <HotelCodeDisplay />}
+
+              <div className="glass-card p-6 space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">User Management</h3>
+                  <Link to="/staff" className="text-primary text-sm hover:underline flex items-center gap-1 font-medium">
+                    Go to Staff Management
+                    <Users className="h-3 w-3" />
+                  </Link>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Manage staff accounts and role-based permissions. Only Hotel Owners can add or remove users.
+                </p>
+                <div className="border border-dashed border-border rounded-lg p-10 text-center space-y-4">
+                  <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Users className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="font-medium">Account administration is centralized</p>
+                    <p className="text-sm text-muted-foreground">Manage all Managers and Housekeeping identities in the Staff section.</p>
+                  </div>
+                  <Button variant="outline" asChild>
+                    <Link to="/staff">Manage All Users</Link>
+                  </Button>
+                </div>
               </div>
             </div>
           </TabsContent>

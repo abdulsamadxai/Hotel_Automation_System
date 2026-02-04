@@ -1,136 +1,56 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useEffect } from "react";
+import { mockStore } from "@/lib/mockStore";
 import { useQueryClient } from "@tanstack/react-query";
 
 export type ActivityType = "booking" | "task" | "alert" | "automation" | "room";
 
 export interface Activity {
   id: string;
-  event_type: ActivityType;
-  event_name: string;
-  title: string;
-  description: string | null;
-  metadata: Record<string, unknown>;
-  source: string;
-  user_id: string | null;
+  event_type?: ActivityType;
+  event_name?: string;
+  action?: string;
+  entity_type?: string;
+  entity_id?: string;
+  title?: string;
+  description?: string | null;
+  details?: string;
+  metadata?: Record<string, unknown>;
+  source?: string;
+  user_id?: string | null;
+  user_name?: string;
   created_at: string;
 }
 
-export function useActivity(limit: number = 10) {
-  return useQuery({
-    queryKey: ["activity", limit],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("activity_log")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(limit);
+import { useAuth } from "@/hooks/useAuth";
 
-      if (error) throw error;
-      return data as Activity[];
+export function useActivity(limit: number = 10) {
+  const { hotelId } = useAuth();
+
+  return useQuery({
+    queryKey: ["activity", hotelId, limit],
+    queryFn: async () => {
+      if (!hotelId) return [];
+      const logs = await mockStore.activity.getAll(hotelId);
+      return logs.slice(0, limit);
     },
+    enabled: !!hotelId,
   });
 }
 
 export function useRealtimeActivity() {
-  const queryClient = useQueryClient();
-
-  useEffect(() => {
-    const channel = supabase
-      .channel("activity-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "activity_log",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["activity"] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [queryClient]);
+  // Mock implementation - no realtime in frontend-only
 }
 
 export function useRealtimeRooms() {
-  const queryClient = useQueryClient();
-
-  useEffect(() => {
-    const channel = supabase
-      .channel("rooms-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "rooms",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["rooms"] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [queryClient]);
+  // Mock implementation - no realtime in frontend-only
 }
 
 export function useRealtimeBookings() {
-  const queryClient = useQueryClient();
-
-  useEffect(() => {
-    const channel = supabase
-      .channel("bookings-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "bookings",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["bookings"] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [queryClient]);
+  // Mock implementation - no realtime in frontend-only
 }
 
 export function useRealtimeHousekeeping() {
-  const queryClient = useQueryClient();
-
-  useEffect(() => {
-    const channel = supabase
-      .channel("housekeeping-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "housekeeping_tasks",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["housekeeping"] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [queryClient]);
+  // Mock implementation - no realtime in frontend-only
 }
 
 export function useDeleteActivity() {
@@ -138,16 +58,11 @@ export function useDeleteActivity() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("activity_log")
-        .delete()
-        .eq("id", id);
-
-      if (error) throw error;
+      // Mock delete - activity logs are typically append-only so this is optional
+      // For now we'll just skip deleting
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["activity"] });
-      // toast({ title: "Log entry deleted" });
     },
   });
 }

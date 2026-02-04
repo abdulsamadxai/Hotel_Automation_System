@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,7 @@ import { useRealtimeHousekeeping } from "@/hooks/useActivity";
 import { useRooms } from "@/hooks/useRooms";
 import { useStaff } from "@/hooks/useStaff";
 import { useAuth } from "@/hooks/useAuth";
+import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
 const taskTypeLabels: Record<TaskType, string> = {
@@ -45,9 +46,6 @@ const priorityColors: Record<TaskPriority, string> = {
   medium: "text-status-warning",
   high: "text-status-error",
 };
-
-import { toast } from "@/hooks/use-toast";
-import { useEffect } from "react";
 
 export default function Housekeeping() {
   useRealtimeHousekeeping();

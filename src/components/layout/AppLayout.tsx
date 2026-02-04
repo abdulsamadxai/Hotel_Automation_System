@@ -6,7 +6,8 @@ import { Bell, Search, LogOut, User, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useUnreadCount } from "@/hooks/useNotifications";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth, UserRole } from "@/hooks/useAuth";
+import { GlobalLoader } from "./GlobalLoader";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,6 +17,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+interface ProtectedRouteProps {
+  children: React.ReactNode;
+  allowedRoles?: UserRole[];
+}
+
 interface AppLayoutProps {
   children: ReactNode;
 }
@@ -23,7 +29,7 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
   const navigate = useNavigate();
   const unreadCount = useUnreadCount();
-  const { user, role, signOut } = useAuth();
+  const { user, role, signOut, isLoading } = useAuth();
 
   const getInitials = () => {
     if (user?.user_metadata?.full_name) {
@@ -52,19 +58,22 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <SidebarProvider>
+      {isLoading && <GlobalLoader />}
       <div className="min-h-screen flex w-full">
         <AppSidebar />
         <div className="flex-1 flex flex-col">
           <header className="sticky top-0 z-50 h-14 border-b border-border bg-background/80 backdrop-blur-xl flex items-center justify-between px-4 gap-4">
             <div className="flex items-center gap-4">
               <SidebarTrigger className="h-8 w-8" />
-              <div className="relative hidden md:block">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search bookings, guests, rooms..."
-                  className="w-80 pl-10 bg-muted/50 border-0 focus-visible:ring-1 focus-visible:ring-primary"
-                />
-              </div>
+              {role !== 'housekeeping' && (
+                <div className="relative hidden md:block">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search bookings, guests, rooms..."
+                    className="w-80 pl-10 bg-muted/50 border-0 focus-visible:ring-1 focus-visible:ring-primary"
+                  />
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-3">
               <Button

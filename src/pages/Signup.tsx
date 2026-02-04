@@ -71,8 +71,8 @@ export default function Signup() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 text-primary mb-4">
             <Hotel className="h-8 w-8" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">Register New Hotel</h1>
-          <p className="text-muted-foreground mt-2">Scale your property with Hotel Autopilot ONE</p>
+          <h1 className="text-2xl font-bold tracking-tight">Sign Up as Hotel Owner</h1>
+          <p className="text-muted-foreground mt-2">Exclusive registration for property owners. Staff accounts are managed within the app.</p>
         </div>
 
         {/* Form */}

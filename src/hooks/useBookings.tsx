@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { mockStore } from "@/lib/mockStore";
 import { toast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 
 export type BookingStatus = "pending" | "confirmed" | "checked_in" | "checked_out" | "cancelled";
 
@@ -27,26 +28,21 @@ export interface Booking {
 }
 
 export function useBookings() {
-  return useQuery({
-    queryKey: ["bookings"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("bookings")
-        .select(`
-          *,
-          guest:guests(id, name, email, tags),
-          room:rooms(id, number, type)
-        `)
-        .order("check_in", { ascending: false });
+  const { hotelId } = useAuth();
 
-      if (error) throw error;
-      return data as Booking[];
+  return useQuery({
+    queryKey: ["bookings", hotelId],
+    queryFn: async () => {
+      if (!hotelId) return [];
+      return await mockStore.bookings.getAll(hotelId);
     },
+    enabled: !!hotelId,
   });
 }
 
 export function useCreateBooking() {
   const queryClient = useQueryClient();
+  const { hotelId } = useAuth();
 
   return useMutation({
     mutationFn: async (booking: {
@@ -61,28 +57,14 @@ export function useCreateBooking() {
       payment_status?: string;
       deposit_amount?: number;
     }) => {
-      // Generate booking number
-      const bookingNumber = `BK-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`;
-
-      const { data, error } = await supabase
-        .from("bookings")
-        .insert({
-          ...booking,
-          booking_number: bookingNumber,
-          status: booking.status || "confirmed",
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+      return await mockStore.bookings.create(booking, hotelId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
       queryClient.invalidateQueries({ queryKey: ["activity"] });
       toast({ title: "Booking created successfully" });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({ title: "Error creating booking", description: error.message, variant: "destructive" });
     },
   });
@@ -93,15 +75,7 @@ export function useUpdateBookingStatus() {
 
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: BookingStatus }) => {
-      const { data, error } = await supabase
-        .from("bookings")
-        .update({ status })
-        .eq("id", id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+      return await mockStore.bookings.update(id, { status });
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
@@ -117,29 +91,9 @@ export function useUpdateBookingStatus() {
         cancelled: "Booking cancelled",
       };
 
-      // AUTOMATION: If checked out, update room and create task
-      if (data.status === 'checked_out' && data.room_id) {
-        // 1. Update Room Status to Dirty
-        supabase.from('rooms').update({ status: 'dirty' }).eq('id', data.room_id).then(() => {
-          queryClient.invalidateQueries({ queryKey: ["rooms"] });
-        });
-
-        // 2. Create Housekeeping Task
-        supabase.from('housekeeping_tasks').insert({
-          room_id: data.room_id,
-          status: 'pending',
-          type: 'checkout_clean',
-          priority: 'medium',
-          description: `Checkout cleaning for room ${data.room_id}`
-        }).then(() => {
-          queryClient.invalidateQueries({ queryKey: ["housekeeping"] });
-        });
-      }
-
       toast({ title: statusMessages[data.status as BookingStatus] });
-
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({ title: "Error updating booking", description: error.message, variant: "destructive" });
     },
   });
@@ -150,15 +104,7 @@ export function useUpdateBooking() {
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: { id: string;[key: string]: any }) => {
-      const { data, error } = await supabase
-        .from("bookings")
-        .update(updates)
-        .eq("id", id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+      return await mockStore.bookings.update(id, updates);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
@@ -177,18 +123,13 @@ export function useDeleteBooking() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("bookings")
-        .delete()
-        .eq("id", id);
-
-      if (error) throw error;
+      await mockStore.bookings.delete(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
       toast({ title: "Booking deleted successfully" });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({ title: "Error deleting booking", description: error.message, variant: "destructive" });
     },
   });

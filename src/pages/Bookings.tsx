@@ -38,8 +38,8 @@ import { useRealtimeBookings } from "@/hooks/useActivity";
 import { useRooms } from "@/hooks/useRooms";
 import { useGuests, useCreateGuest } from "@/hooks/useGuests";
 import { format } from "date-fns";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCurrency } from "@/contexts/AppSettingsContext";
 import { formatAndConvert } from "@/utils/currency";
 
@@ -53,11 +53,13 @@ export default function Bookings() {
   const deleteBooking = useDeleteBooking();
   const createGuest = useCreateGuest();
   const updateStatus = useUpdateBookingStatus();
+  const queryClient = useQueryClient();
   const { currency } = useCurrency();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingBooking, setEditingBooking] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [activeStatusFilter, setActiveStatusFilter] = useState<"confirmed" | "pending" | "checked-in" | "checked-out" | "cancelled" | null>(null);
   const [paymentMode, setPaymentMode] = useState<"pay_now" | "deposit" | "pay_later">("pay_later");
   const [formData, setFormData] = useState({
     guestName: "",
@@ -107,7 +109,11 @@ export default function Bookings() {
   };
 
   const handleStatusChange = async (id: string, status: BookingStatus) => {
-    updateStatus.mutate({ id, status });
+    await updateStatus.mutateAsync({ id, status });
+    if (status === "checked_out") {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      toast({ title: "Final invoice generated", description: "The checkout invoice is now available in Billing." });
+    }
   };
 
   const handleSaveBooking = async () => {
@@ -122,15 +128,13 @@ export default function Bookings() {
         });
       } else {
         let customerId = "";
-        // @ts-ignore
-        const { data: existingCustomers } = await supabase
-          .from("guests")
-          .select("id")
-          .or(`phone.eq.${formData.guestPhone},email.eq.${formData.guestEmail}`)
-          .limit(1);
+        // Check for existing guest by phone or email
+        const existingGuest = guests.find(g =>
+          g.phone === formData.guestPhone || g.email === formData.guestEmail
+        );
 
-        if (existingCustomers && existingCustomers.length > 0) {
-          customerId = existingCustomers[0].id;
+        if (existingGuest) {
+          customerId = existingGuest.id;
         } else {
           const newCustomer = await createGuest.mutateAsync({
             name: formData.guestName,
@@ -165,27 +169,8 @@ export default function Bookings() {
           deposit_amount: deposit
         });
 
-        const invoiceNum = `INV-${Date.now()}`;
-        let amountPaid = paymentMode === "pay_now" ? totalAmount : (paymentMode === "deposit" ? deposit : 0);
-
-        // @ts-ignore
-        await supabase.from("invoices").insert({
-          invoice_number: invoiceNum,
-          booking_id: booking.id,
-          guest_id: customerId,
-          amount: totalAmount,
-          amount_paid: amountPaid,
-          status: paymentMode === "pay_now" ? "paid" : "pending",
-          paid_at: amountPaid > 0 ? new Date().toISOString() : null,
-          payment_method: amountPaid > 0 ? "cash" : null,
-          notes: `Booking Charge (${nights} nights). Mode: ${paymentMode}`,
-          line_items: [{
-            description: `Room Charge (${selectedRoom?.type} - ${nights} nights)`,
-            amount: totalAmount,
-            quantity: 1,
-            type: "charge"
-          }]
-        });
+        // Invoice will be created by mock store hooks automatically
+        queryClient.invalidateQueries({ queryKey: ["invoices"] });
       }
 
       setIsDialogOpen(false);
@@ -203,19 +188,7 @@ export default function Bookings() {
     }
   };
 
-  const filteredBookings = bookings.filter(
-    (b) =>
-      b.booking_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      b.guest?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      b.room?.number?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const statusCounts = bookings.reduce((acc, b) => {
-    const status = b.status.replace("_", "-") as string;
-    acc[status] = (acc[status] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-
+  // Define mapStatus before using it
   const mapStatus = (status: BookingStatus): "confirmed" | "pending" | "checked-in" | "checked-out" | "cancelled" => {
     const statusMap: Record<BookingStatus, "confirmed" | "pending" | "checked-in" | "checked-out" | "cancelled"> = {
       pending: "pending",
@@ -224,8 +197,31 @@ export default function Bookings() {
       checked_out: "checked-out",
       cancelled: "cancelled",
     };
-    return statusMap[status];
+    return statusMap[status] || "confirmed";
   };
+
+  const filteredBookings = bookings.filter(
+    (b) =>
+      (b.booking_number?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (b.guest?.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (b.room?.number?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+  ).filter((b) => {
+    // Apply status filter if active
+    if (activeStatusFilter) {
+      return mapStatus(b.status) === activeStatusFilter;
+    }
+    return true;
+  });
+
+  const handleStatusFilter = (status: "confirmed" | "pending" | "checked-in" | "checked-out" | "cancelled") => {
+    setActiveStatusFilter(activeStatusFilter === status ? null : status);
+  };
+
+  const statusCounts = bookings.reduce((acc, b) => {
+    const status = (b.status || 'pending').replace("_", "-") as string;
+    acc[status] = (acc[status] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
 
   if (isLoading) {
     return (
@@ -416,6 +412,7 @@ export default function Bookings() {
           </div>
         </div>
 
+        {/* Status Cards - Clickable Filters */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {[
             { status: "confirmed" as const, count: statusCounts["confirmed"] || 0 },
@@ -426,13 +423,37 @@ export default function Bookings() {
           ].map((item) => (
             <button
               key={item.status}
-              className="glass-card p-3 text-left hover:border-primary/30 transition-colors"
+              onClick={() => handleStatusFilter(item.status)}
+              className={`glass-card p-3 text-left transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] ${activeStatusFilter === item.status
+                ? "ring-2 ring-primary shadow-glow border-primary/50"
+                : "hover:border-primary/30"
+                }`}
             >
               <StatusBadge status={item.status} size="sm" />
               <p className="text-xl font-bold mt-2">{item.count}</p>
             </button>
           ))}
         </div>
+
+        {/* Active Filter Indicator */}
+        {activeStatusFilter && (
+          <div className="flex items-center justify-between bg-primary/5 p-3 rounded-lg border border-primary/20">
+            <div className="flex items-center gap-2">
+              <StatusBadge status={activeStatusFilter} size="sm" />
+              <p className="text-sm font-medium">
+                Showing {filteredBookings.length} {activeStatusFilter.replace("-", " ")} booking{filteredBookings.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setActiveStatusFilter(null)}
+              className="h-8 text-xs hover:bg-primary/10 text-primary"
+            >
+              Clear Filter
+            </Button>
+          </div>
+        )}
 
         <div className="glass-card overflow-hidden">
           {filteredBookings.length === 0 ? (

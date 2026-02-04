@@ -1,34 +1,38 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { mockStore } from "@/lib/mockStore";
 import { toast } from "@/hooks/use-toast";
 
 export interface AutomationRule {
   id: string;
   name: string;
-  description: string | null;
-  trigger_event: string;
-  trigger_condition: Record<string, unknown>;
-  action_type: string;
-  action_config: Record<string, unknown>;
-  is_active: boolean;
-  execution_count: number;
-  last_triggered_at: string | null;
+  description?: string | null;
+  trigger_event?: string;
+  trigger?: string;
+  trigger_condition?: Record<string, unknown>;
+  action_type?: string;
+  action?: string;
+  action_config?: Record<string, unknown>;
+  is_active?: boolean;
+  enabled?: boolean;
+  config?: Record<string, unknown>;
+  execution_count?: number;
+  last_triggered_at?: string | null;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
+import { useAuth } from "@/hooks/useAuth";
+
 export function useAutomations() {
+  const { hotelId } = useAuth();
+
   return useQuery({
-    queryKey: ["automations"],
+    queryKey: ["automations", hotelId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("automation_rules")
-        .select("*")
-        .order("created_at", { ascending: false });
-      
-      if (error) throw error;
-      return data as AutomationRule[];
+      if (!hotelId) return [];
+      return await mockStore.automations.getAll(hotelId);
     },
+    enabled: !!hotelId,
   });
 }
 
@@ -37,24 +41,16 @@ export function useToggleAutomation() {
 
   return useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
-      const { data, error } = await supabase
-        .from("automation_rules")
-        .update({ is_active })
-        .eq("id", id)
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data;
+      return await mockStore.automations.update(id, { is_active, enabled: is_active });
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["automations"] });
-      toast({ 
-        title: data.is_active ? "Automation enabled" : "Automation disabled",
+      toast({
+        title: (data.is_active || data.enabled) ? "Automation enabled" : "Automation disabled",
         description: data.name,
       });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({ title: "Error updating automation", description: error.message, variant: "destructive" });
     },
   });
@@ -62,6 +58,7 @@ export function useToggleAutomation() {
 
 export function useCreateAutomation() {
   const queryClient = useQueryClient();
+  const { hotelId } = useAuth();
 
   return useMutation({
     mutationFn: async (automation: {
@@ -71,26 +68,17 @@ export function useCreateAutomation() {
       action_type: string;
       is_active?: boolean;
     }) => {
-      const { data, error } = await supabase
-        .from("automation_rules")
-        .insert([{
-          name: automation.name,
-          description: automation.description,
-          trigger_event: automation.trigger_event,
-          action_type: automation.action_type,
-          is_active: automation.is_active ?? true,
-        }])
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data;
+      return await mockStore.automations.create({
+        ...automation,
+        is_active: automation.is_active ?? true,
+        enabled: automation.is_active ?? true,
+      }, hotelId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["automations"] });
       toast({ title: "Automation rule created successfully" });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({ title: "Error creating automation", description: error.message, variant: "destructive" });
     },
   });
@@ -101,18 +89,13 @@ export function useDeleteAutomation() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("automation_rules")
-        .delete()
-        .eq("id", id);
-      
-      if (error) throw error;
+      await mockStore.automations.delete(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["automations"] });
       toast({ title: "Automation rule deleted" });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({ title: "Error deleting automation", description: error.message, variant: "destructive" });
     },
   });

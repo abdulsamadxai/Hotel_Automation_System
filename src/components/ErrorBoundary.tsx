@@ -25,32 +25,46 @@ export class ErrorBoundary extends Component<Props, State> {
         console.error("Uncaught error:", error, errorInfo);
     }
 
+    private handleReset = () => {
+        this.setState({ hasError: false, error: null });
+        window.location.href = "/";
+    };
+
     public render() {
         if (this.state.hasError) {
             return (
-                <div className="min-h-screen bg-background flex items-center justify-center p-4">
-                    <div className="glass-card max-w-md w-full p-8 text-center space-y-6 border border-status-error/20 shadow-glow">
+                <div className="min-h-screen bg-background flex items-center justify-center p-4 antialiased">
+                    <div className="glass-card max-w-md w-full p-8 text-center space-y-6 border border-status-error/20 shadow-glow animate-fade-in">
                         <div className="h-16 w-16 bg-status-error/10 rounded-full flex items-center justify-center mx-auto text-status-error">
                             <AlertCircle className="h-8 w-8" />
                         </div>
                         <div className="space-y-2">
-                            <h1 className="text-xl font-bold tracking-tight">Something went wrong</h1>
+                            <h1 className="text-xl font-bold tracking-tight text-foreground">Application Error</h1>
                             <p className="text-sm text-muted-foreground">
-                                An unexpected error occurred while rendering this page.
+                                We've encountered an unexpected issue. Please try refreshing or returning to home.
                             </p>
                             {this.state.error && (
-                                <div className="mt-4 p-3 bg-muted/50 rounded-lg text-xs font-mono text-status-error text-left overflow-auto max-h-32">
-                                    {this.state.error.message}
+                                <div className="mt-4 p-4 bg-muted/30 rounded-lg text-xs font-mono text-status-error text-left overflow-auto max-h-40 border border-border/50">
+                                    {this.state.error.name}: {this.state.error.message}
                                 </div>
                             )}
                         </div>
-                        <Button
-                            className="w-full gap-2"
-                            onClick={() => window.location.reload()}
-                        >
-                            <RefreshCcw className="h-4 w-4" />
-                            Refresh Application
-                        </Button>
+                        <div className="grid grid-cols-2 gap-3 pt-2">
+                            <Button
+                                variant="outline"
+                                className="w-full gap-2"
+                                onClick={() => window.location.reload()}
+                            >
+                                <RefreshCcw className="h-4 w-4" />
+                                Refresh
+                            </Button>
+                            <Button
+                                className="w-full"
+                                onClick={this.handleReset}
+                            >
+                                Go to Home
+                            </Button>
+                        </div>
                     </div>
                 </div>
             );

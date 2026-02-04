@@ -1,47 +1,41 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useEffect } from "react";
+import { mockStore } from "@/lib/mockStore";
 import { useAuth } from "./useAuth";
 
-export type NotificationType = "booking" | "task" | "alert" | "automation" | "room";
+export type NotificationType = "booking" | "task" | "alert" | "automation" | "room" | "info" | "warning" | "success";
 
 export interface Notification {
   id: string;
-  user_id: string | null;
+  user_id?: string | null;
+  hotel_id?: string;
   type: NotificationType;
   title: string;
   message: string;
-  link: string | null;
-  is_read: boolean;
-  metadata: Record<string, unknown>;
+  link?: string | null;
+  is_read?: boolean;
+  read?: boolean;
+  metadata?: Record<string, unknown>;
   created_at: string;
 }
 
 export function useNotifications() {
-  const { user } = useAuth();
+  const { user, hotelId } = useAuth();
 
   return useQuery({
-    queryKey: ["notifications", user?.id],
+    queryKey: ["notifications", user?.id, hotelId],
     queryFn: async () => {
-      if (!user) return [];
-      
-      const { data, error } = await supabase
-        .from("notifications")
-        .select("*")
-        .or(`user_id.eq.${user.id},user_id.is.null`)
-        .order("created_at", { ascending: false })
-        .limit(50);
-      
-      if (error) throw error;
-      return data as Notification[];
+      if (!hotelId) return [];
+      const notifications = await mockStore.notifications.getAll(hotelId);
+      // Filter by user if needed (or return all for the hotel)
+      return notifications.slice(0, 50); // Limit to 50
     },
-    enabled: !!user,
+    enabled: !!hotelId,
   });
 }
 
 export function useUnreadCount() {
   const { data: notifications } = useNotifications();
-  return notifications?.filter((n) => !n.is_read).length || 0;
+  return notifications?.filter((n) => !(n.is_read || n.read)).length || 0;
 }
 
 export function useMarkAsRead() {
@@ -50,12 +44,7 @@ export function useMarkAsRead() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("notifications")
-        .update({ is_read: true })
-        .eq("id", id);
-      
-      if (error) throw error;
+      await mockStore.notifications.update(id, { is_read: true, read: true });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications", user?.id] });
@@ -65,19 +54,16 @@ export function useMarkAsRead() {
 
 export function useMarkAllAsRead() {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, hotelId } = useAuth();
 
   return useMutation({
     mutationFn: async () => {
-      if (!user) return;
-      
-      const { error } = await supabase
-        .from("notifications")
-        .update({ is_read: true })
-        .eq("user_id", user.id)
-        .eq("is_read", false);
-      
-      if (error) throw error;
+      if (!hotelId) return;
+      const notifications = await mockStore.notifications.getAll(hotelId);
+      const unread = notifications.filter(n => !(n.is_read || n.read));
+      for (const notif of unread) {
+        await mockStore.notifications.update(notif.id, { is_read: true, read: true });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications", user?.id] });
@@ -86,29 +72,6 @@ export function useMarkAllAsRead() {
 }
 
 export function useRealtimeNotifications() {
-  const queryClient = useQueryClient();
-  const { user } = useAuth();
-
-  useEffect(() => {
-    if (!user) return;
-
-    const channel = supabase
-      .channel("notifications-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "notifications",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["notifications", user.id] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [queryClient, user]);
+  // Mock implementation - no realtime in frontend-only
+  // This hook can remain but does nothing
 }

@@ -34,6 +34,7 @@ export default function Rooms() {
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
+  const [activeFilter, setActiveFilter] = useState<RoomStatus | null>(null);
   const [formData, setFormData] = useState({
     number: "",
     type: "standard" as RoomType,
@@ -47,6 +48,15 @@ export default function Rooms() {
     acc[s] = (acc[s] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
+
+  // Filter rooms based on active status filter
+  const filteredRooms = activeFilter
+    ? rooms.filter(room => room.status === activeFilter)
+    : rooms;
+
+  const handleStatusFilter = (status: RoomStatus) => {
+    setActiveFilter(activeFilter === status ? null : status);
+  };
 
   const handleOpenDialog = (room?: Room) => {
     if (room) {
@@ -186,13 +196,17 @@ export default function Rooms() {
           </DialogContent>
         </Dialog>
 
-        {/* Status Overview */}
+        {/* Status Overview - Clickable Filters */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {(["available", "occupied", "dirty", "cleaning", "maintenance"] as const).map(
             (status) => (
               <div
                 key={status}
-                className="glass-card p-4 text-center hover:border-primary/30 transition-colors cursor-pointer"
+                onClick={() => handleStatusFilter(status)}
+                className={`glass-card p-4 text-center transition-all duration-200 cursor-pointer hover:scale-[1.02] active:scale-[0.98] ${activeFilter === status
+                    ? "ring-2 ring-primary shadow-glow border-primary/50"
+                    : "hover:border-primary/30"
+                  }`}
               >
                 <StatusBadge status={status} />
                 <p className="text-2xl font-bold mt-2">
@@ -203,24 +217,50 @@ export default function Rooms() {
           )}
         </div>
 
+        {/* Active Filter Indicator */}
+        {activeFilter && (
+          <div className="flex items-center justify-between bg-primary/5 p-3 rounded-lg border border-primary/20">
+            <div className="flex items-center gap-2">
+              <StatusBadge status={activeFilter} size="sm" />
+              <p className="text-sm font-medium">
+                Showing {filteredRooms.length} {activeFilter} room{filteredRooms.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setActiveFilter(null)}
+              className="h-8 text-xs hover:bg-primary/10 text-primary"
+            >
+              Clear Filter
+            </Button>
+          </div>
+        )}
+
         {/* Room Grid */}
-        {rooms.length === 0 ? (
+        {filteredRooms.length === 0 ? (
           <div className="glass-card p-12 text-center">
             <div className="h-16 w-16 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-4">
               <Bed className="h-8 w-8 text-muted-foreground" />
             </div>
-            <h3 className="text-lg font-semibold mb-2">No rooms configured yet</h3>
+            <h3 className="text-lg font-semibold mb-2">
+              {activeFilter ? `No ${activeFilter} rooms found` : "No rooms configured yet"}
+            </h3>
             <p className="text-muted-foreground text-sm max-w-sm mx-auto mb-4">
-              Add rooms to your property to start managing inventory and bookings.
+              {activeFilter
+                ? `There are currently no rooms with status "${activeFilter}".`
+                : "Add rooms to your property to start managing inventory and bookings."}
             </p>
-            <Button className="gap-2" onClick={() => handleOpenDialog()}>
-              <Plus className="h-4 w-4" />
-              Add Room
-            </Button>
+            {!activeFilter && (
+              <Button className="gap-2" onClick={() => handleOpenDialog()}>
+                <Plus className="h-4 w-4" />
+                Add Room
+              </Button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {rooms.map((room) => (
+            {filteredRooms.map((room) => (
               <div
                 key={room.id}
                 className="glass-card p-4 hover:border-primary/30 transition-all duration-300 cursor-pointer group"

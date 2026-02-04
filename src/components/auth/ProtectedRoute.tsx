@@ -1,24 +1,17 @@
 import { Navigate } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, UserRole } from '@/hooks/useAuth';
 import { Loader2 } from 'lucide-react';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  allowedRoles?: ('super_admin' | 'owner' | 'manager' | 'housekeeping')[];
+  allowedRoles?: UserRole[];
 }
 
 export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
   const { user, role, isLoading } = useAuth();
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
-      </div>
-    );
+    return null; // Optimized for speed: show nothing during initial auth check
   }
 
   if (!user) {
@@ -27,7 +20,13 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
 
   // Check role-based access
   if (allowedRoles && role && !allowedRoles.includes(role)) {
-    return <Navigate to="/" replace />;
+    const fallback = role === 'housekeeping' ? '/housekeeping' : '/';
+    return <Navigate to={fallback} replace />;
+  }
+
+  // Strict: Housekeeping should not land on / (Dashboard)
+  if (role === 'housekeeping' && window.location.pathname === '/') {
+    return <Navigate to="/housekeeping" replace />;
   }
 
   return <>{children}</>;

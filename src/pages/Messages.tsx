@@ -33,7 +33,7 @@ export default function Messages() {
   const [searchTerm, setSearchTerm] = useState("");
 
   const filteredConversations = conversations.filter(c =>
-    c.guest_name.toLowerCase().includes(searchTerm.toLowerCase())
+    (c.guest_name || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   useEffect(() => {
@@ -168,7 +168,7 @@ export default function Messages() {
                 <div className="p-4 border-b border-border bg-background/50 backdrop-blur-sm">
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium">
-                      {activeConversation?.guest_name.substring(0, 2).toUpperCase()}
+                      {(activeConversation?.guest_name || 'Guest').substring(0, 2).toUpperCase()}
                     </div>
                     <div>
                       <p className="font-medium">{activeConversation?.guest_name}</p>
@@ -194,8 +194,8 @@ export default function Messages() {
                       >
                         <div
                           className={`max-w-[70%] p-3 rounded-xl shadow-sm ${msg.direction === "outbound"
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-card border border-border"
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-card border border-border"
                             }`}
                         >
                           <p className="text-sm">{msg.content}</p>

@@ -19,8 +19,7 @@ import {
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
-import { useQuery } from "@tanstack/react-query";
-import { mockData } from "@/lib/mockData";
+import { useHotel } from "@/hooks/useHotels";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -124,16 +123,8 @@ export function AppSidebar() {
   const navigate = useNavigate();
   const isCollapsed = state === "collapsed";
 
-  const { data: hotel } = useQuery({
-    queryKey: ['hotel-info', hotelId],
-    queryFn: async () => {
-      if (!hotelId) return null;
-      // Return mock hotel data
-      await new Promise(resolve => setTimeout(resolve, 50));
-      return mockData.hotels.find(h => h.id === hotelId) || mockData.hotels[0];
-    },
-    enabled: !!hotelId
-  });
+  // 'global' (super-admin, no hotel picked) falls back to the first hotel.
+  const { data: hotel } = useHotel(hotelId || null);
 
   const handleSignOut = async () => {
     await signOut();

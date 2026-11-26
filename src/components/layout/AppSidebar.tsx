@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useLocation, useNavigate, Outlet, Link } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -15,6 +15,7 @@ import {
   Building2,
   ChevronDown,
   LogOut,
+  type LucideIcon,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
@@ -49,9 +50,15 @@ const roleColors: Record<string, string> = {
   housekeeping: "bg-status-warning/15 text-status-warning",
 };
 
+interface SidebarMenuItemData {
+  title: string;
+  url: string;
+  iconComp: ReactNode;
+}
+
 interface MenuGroupProps {
   label: string;
-  items: any[];
+  items: SidebarMenuItemData[];
   defaultOpen?: boolean;
 }
 
@@ -161,8 +168,8 @@ export function AppSidebar() {
     ...(role === 'super_admin' ? [{ title: "Automations", url: "/automations", icon: Zap }] : []),
     ...(role !== 'housekeeping' ? [{ title: "Messages", url: "/messages", icon: MessageSquare }] : []),
     ...(role !== 'housekeeping' ? [{ title: "Alerts", url: "/alerts", icon: Bell }] : []),
-    ...(role === 'super_admin' ? [{ title: "Event Logs", url: "/logs", icon: FileText }] : []),
-    ...(role === 'owner' || role === 'super_admin' ? [{ title: "Settings", url: "/settings", icon: Settings }] : []),
+    ...((role === 'owner' || role === 'manager' || role === 'super_admin') ? [{ title: "Event Logs", url: "/logs", icon: FileText }] : []),
+    ...((role === 'owner' || role === 'manager' || role === 'super_admin') ? [{ title: "Settings", url: "/settings", icon: Settings }] : []),
 
   ].filter(Boolean);
 
@@ -200,7 +207,7 @@ export function AppSidebar() {
     );
   }
 
-  const renderIcon = (Icon: any) => {
+  const renderIcon = (Icon: LucideIcon | undefined) => {
     if (!Icon) return <LayoutDashboard className="h-4 w-4 shrink-0" />;
     return <Icon className="h-4 w-4 shrink-0" />;
   };

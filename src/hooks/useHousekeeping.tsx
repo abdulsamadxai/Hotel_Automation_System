@@ -1,13 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { mockStore, type TaskWithJoins } from "@/lib/mockStore";
+import { api, hotelParams } from "@/lib/api";
 import type {
   HousekeepingTask as CanonicalTask,
   TaskPriority,
   TaskStatus,
   TaskType,
+  TaskWithJoins,
 } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { useStaff } from "@/hooks/useStaff";
 
 export type { TaskStatus, TaskType, TaskPriority } from "@/lib/types";
 
@@ -35,19 +37,22 @@ function withOverdue(task: TaskWithJoins): HousekeepingTask {
 
 export function useHousekeepingTasks() {
   const { hotelId, role, user } = useAuth();
+  // The staff list gives the current user's staff record, so the
+  // housekeeping role only sees tasks assigned to them.
+  const { data: staff = [] } = useStaff();
 
   return useQuery({
     queryKey: ["housekeeping", hotelId, role, user?.id],
     queryFn: async () => {
       if (!hotelId) return [];
 
-      let tasks = await mockStore.housekeeping.getAll(hotelId);
+      let tasks = await api.get<TaskWithJoins[]>("/api/housekeeping", hotelParams(hotelId));
 
       // Role isolation: Housekeeping only sees their own tasks.
       if (role === 'housekeeping') {
-        const staff = await mockStore.staff.getByUserId(user?.id ?? '');
-        if (staff) {
-          tasks = tasks.filter(t => t.assigned_to === staff.id);
+        const mine = staff.find((s) => s.user_id === user?.id);
+        if (mine) {
+          tasks = tasks.filter(t => t.assigned_to === mine.id);
         } else {
           return []; // No staff record, no access
         }
@@ -61,7 +66,6 @@ export function useHousekeepingTasks() {
 
 export function useCreateTask() {
   const queryClient = useQueryClient();
-  const { hotelId } = useAuth();
 
   return useMutation({
     mutationFn: async (task: {
@@ -73,7 +77,7 @@ export function useCreateTask() {
       description?: string;
       due_at?: string;
     }) => {
-      return await mockStore.housekeeping.create({
+      return await api.post<TaskWithJoins>("/api/housekeeping", {
         room_id: task.room_id,
         type: task.type,
         priority: task.priority,
@@ -82,7 +86,7 @@ export function useCreateTask() {
         due_at: task.due_at ?? null,
         notes: task.notes,
         status: "pending",
-      }, hotelId);
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["housekeeping"] });
@@ -100,7 +104,7 @@ export function useUpdateTaskStatus() {
 
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: TaskStatus }) => {
-      return await mockStore.housekeeping.update(id, { status });
+      return await api.patch<TaskWithJoins>(`/api/housekeeping/${id}`, { status });
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["housekeeping"] });
@@ -127,7 +131,7 @@ export function useAssignTask() {
 
   return useMutation({
     mutationFn: async ({ id, assigned_to }: { id: string; assigned_to: string }) => {
-      return await mockStore.housekeeping.update(id, { assigned_to });
+      return await api.patch<TaskWithJoins>(`/api/housekeeping/${id}`, { assigned_to });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["housekeeping"] });
@@ -144,7 +148,7 @@ export function useUpdateTask() {
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<CanonicalTask> & { id: string }) => {
-      return await mockStore.housekeeping.update(id, updates);
+      return await api.patch<TaskWithJoins>(`/api/housekeeping/${id}`, updates);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["housekeeping"] });
@@ -163,7 +167,7 @@ export function useDeleteTask() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      await mockStore.housekeeping.delete(id);
+      await api.del(`/api/housekeeping/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["housekeeping"] });

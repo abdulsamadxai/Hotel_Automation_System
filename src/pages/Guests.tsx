@@ -52,7 +52,8 @@ export default function Guests() {
     nationality: "",
     id_number: "",
     notes: "",
-    tags: ["regular"] as GuestTag[]
+    // New guests start untagged; the store defaults tags to [].
+    tags: [] as GuestTag[]
   });
 
   const handleOpenDialog = (guest?: Guest) => {
@@ -76,7 +77,7 @@ export default function Guests() {
         nationality: "",
         id_number: "",
         notes: "",
-        tags: ["regular"]
+        tags: []
       });
     }
     setIsDialogOpen(true);
@@ -112,7 +113,7 @@ export default function Guests() {
       nationality: "",
       id_number: "",
       notes: "",
-      tags: ["regular"]
+      tags: []
     });
   };
 
@@ -318,20 +319,24 @@ export default function Guests() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        {(guest.tags || ["regular"]).map((tag) => {
-                          const config = tagConfig[tag] || tagConfig.regular;
-                          const Icon = config.icon;
-                          return (
-                            <Badge
-                              key={tag}
-                              variant="outline"
-                              className={`gap-1 ${config.color}`}
-                            >
-                              <Icon className="h-3 w-3" />
-                              {tag.toUpperCase()}
-                            </Badge>
-                          );
-                        })}
+                        {guest.tags.length === 0 ? (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        ) : (
+                          guest.tags.map((tag) => {
+                            const config = tagConfig[tag] || tagConfig.regular;
+                            const Icon = config.icon;
+                            return (
+                              <Badge
+                                key={tag}
+                                variant="outline"
+                                className={`gap-1 ${config.color}`}
+                              >
+                                <Icon className="h-3 w-3" />
+                                {tag.toUpperCase()}
+                              </Badge>
+                            );
+                          })
+                        )}
                       </div>
                     </TableCell>
                     <TableCell className="text-right">

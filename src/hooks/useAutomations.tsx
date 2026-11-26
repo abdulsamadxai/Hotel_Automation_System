@@ -1,27 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { mockStore } from "@/lib/mockStore";
+import { mockStore, type AutomationCreateInput } from "@/lib/mockStore";
+import type { Automation as CanonicalAutomation, AutomationAction, StoreEventType } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
-
-export interface AutomationRule {
-  id: string;
-  name: string;
-  description?: string | null;
-  trigger_event?: string;
-  trigger?: string;
-  trigger_condition?: Record<string, unknown>;
-  action_type?: string;
-  action?: string;
-  action_config?: Record<string, unknown>;
-  is_active?: boolean;
-  enabled?: boolean;
-  config?: Record<string, unknown>;
-  execution_count?: number;
-  last_triggered_at?: string | null;
-  created_at: string;
-  updated_at?: string;
-}
-
 import { useAuth } from "@/hooks/useAuth";
+
+export type { AutomationAction, StoreEventType } from "@/lib/types";
+
+/** Canonical automation rule: `enabled`, `trigger`, `action`. */
+export type AutomationRule = CanonicalAutomation;
+
+function toErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "An unknown error occurred";
+}
 
 export function useAutomations() {
   const { hotelId } = useAuth();
@@ -40,18 +30,18 @@ export function useToggleAutomation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
-      return await mockStore.automations.update(id, { is_active, enabled: is_active });
+    mutationFn: async ({ id, enabled }: { id: string; enabled: boolean }) => {
+      return await mockStore.automations.update(id, { enabled });
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["automations"] });
       toast({
-        title: (data.is_active || data.enabled) ? "Automation enabled" : "Automation disabled",
+        title: data.enabled ? "Automation enabled" : "Automation disabled",
         description: data.name,
       });
     },
-    onError: (error: any) => {
-      toast({ title: "Error updating automation", description: error.message, variant: "destructive" });
+    onError: (error: unknown) => {
+      toast({ title: "Error updating automation", description: toErrorMessage(error), variant: "destructive" });
     },
   });
 }
@@ -61,25 +51,38 @@ export function useCreateAutomation() {
   const { hotelId } = useAuth();
 
   return useMutation({
-    mutationFn: async (automation: {
-      name: string;
-      description?: string | null;
-      trigger_event: string;
-      action_type: string;
-      is_active?: boolean;
-    }) => {
-      return await mockStore.automations.create({
-        ...automation,
-        is_active: automation.is_active ?? true,
-        enabled: automation.is_active ?? true,
-      }, hotelId);
+    mutationFn: async (automation: AutomationCreateInput) => {
+      return await mockStore.automations.create(automation, hotelId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["automations"] });
       toast({ title: "Automation rule created successfully" });
     },
-    onError: (error: any) => {
-      toast({ title: "Error creating automation", description: error.message, variant: "destructive" });
+    onError: (error: unknown) => {
+      toast({ title: "Error creating automation", description: toErrorMessage(error), variant: "destructive" });
+    },
+  });
+}
+
+export function useUpdateAutomation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      updates,
+    }: {
+      id: string;
+      updates: Partial<Pick<CanonicalAutomation, "name" | "description" | "trigger" | "action" | "enabled" | "config">>;
+    }) => {
+      return await mockStore.automations.update(id, updates);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["automations"] });
+      toast({ title: "Automation rule updated" });
+    },
+    onError: (error: unknown) => {
+      toast({ title: "Error updating automation", description: toErrorMessage(error), variant: "destructive" });
     },
   });
 }
@@ -95,8 +98,8 @@ export function useDeleteAutomation() {
       queryClient.invalidateQueries({ queryKey: ["automations"] });
       toast({ title: "Automation rule deleted" });
     },
-    onError: (error: any) => {
-      toast({ title: "Error deleting automation", description: error.message, variant: "destructive" });
+    onError: (error: unknown) => {
+      toast({ title: "Error deleting automation", description: toErrorMessage(error), variant: "destructive" });
     },
   });
 }

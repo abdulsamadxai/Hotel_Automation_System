@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { mockStore, type GuestCreateInput } from "@/lib/mockStore";
-import type { Guest as CanonicalGuest, GuestTag } from "@/lib/types";
+import { api, hotelParams } from "@/lib/api";
+import type { Guest as CanonicalGuest, GuestCreateInput, GuestTag } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -12,14 +12,20 @@ function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "An unknown error occurred";
 }
 
-export function useGuests() {
+/**
+ * Guests for the hotel, optionally filtered server-side with `?q=`
+ * (name / email / phone; case-insensitive on PostgreSQL, case-sensitive
+ * on the dev-only SQLite build).
+ */
+export function useGuests(search?: string) {
   const { hotelId } = useAuth();
+  const q = search?.trim() ? search.trim() : undefined;
 
   return useQuery({
-    queryKey: ["guests", hotelId],
+    queryKey: ["guests", hotelId, q ?? ""],
     queryFn: async () => {
       if (!hotelId) return [];
-      return await mockStore.guests.getAll(hotelId);
+      return await api.get<Guest[]>("/api/guests", { ...hotelParams(hotelId), q });
     },
     enabled: !!hotelId,
   });
@@ -27,11 +33,10 @@ export function useGuests() {
 
 export function useCreateGuest() {
   const queryClient = useQueryClient();
-  const { hotelId } = useAuth();
 
   return useMutation({
     mutationFn: async (guest: GuestCreateInput) => {
-      return await mockStore.guests.create(guest, hotelId);
+      return await api.post<Guest>("/api/guests", guest);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["guests"] });
@@ -48,7 +53,7 @@ export function useUpdateGuest() {
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<Guest> & { id: string }) => {
-      return await mockStore.guests.update(id, updates);
+      return await api.patch<Guest>(`/api/guests/${id}`, updates);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["guests"] });
@@ -65,7 +70,7 @@ export function useDeleteGuest() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      await mockStore.guests.delete(id);
+      await api.del(`/api/guests/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["guests"] });

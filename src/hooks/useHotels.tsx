@@ -1,8 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { mockStore } from "@/lib/mockStore";
+import { api } from "@/lib/api";
+import type { Hotel } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 
-/** Read a hotel from the persisted store (not static seed data). */
+/** All hotels (super-admin sees every hotel; everyone else their own). */
+export function useHotels() {
+  return useQuery({
+    queryKey: ["hotels"],
+    queryFn: async () => await api.get<Hotel[]>("/api/hotels"),
+  });
+}
+
+/** Read a hotel from the API. */
 export function useHotel(hotelId: string | null) {
   return useQuery({
     queryKey: ["hotel-info", hotelId],
@@ -10,16 +19,18 @@ export function useHotel(hotelId: string | null) {
       if (!hotelId) return null;
       // Super-admins have hotelId 'global' until they pick a hotel, so
       // fall back to the first hotel rather than showing nothing.
-      const found = await mockStore.hotels.getById(hotelId);
-      if (found) return found;
-      const all = await mockStore.hotels.getAll();
-      return all[0] ?? null;
+      try {
+        return await api.get<Hotel>(`/api/hotels/${hotelId}`);
+      } catch {
+        const all = await api.get<Hotel[]>("/api/hotels");
+        return all[0] ?? null;
+      }
     },
     enabled: !!hotelId,
   });
 }
 
-/** Persist hotel branding changes through the store. */
+/** Persist hotel branding changes through the API. */
 export function useUpdateHotel(hotelId: string | null) {
   const queryClient = useQueryClient();
 
@@ -31,7 +42,7 @@ export function useUpdateHotel(hotelId: string | null) {
       id: string;
       updates: { name: string; location: string; logo_url: string };
     }) => {
-      return mockStore.hotels.update(id, updates);
+      return api.patch<Hotel>(`/api/hotels/${id}`, updates);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["hotel-info", hotelId] });

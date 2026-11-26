@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { format, subDays } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { KPICard } from "@/components/dashboard/KPICard";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
@@ -19,8 +19,8 @@ import { SuperAdminHotelTable, type HotelTableStats } from "@/components/dashboa
 import { GlobalUsersTable } from "@/components/dashboard/GlobalUsersTable";
 import { HotelCodeDisplay } from "@/components/dashboard/HotelCodeDisplay";
 import { Button } from "@/components/ui/button";
-import { mockStore, type BookingWithJoins, type InvoiceWithJoins, type StaffWithJoins } from "@/lib/mockStore";
-import type { ActivityLog, Automation, Hotel, Notification, Room } from "@/lib/types";
+import { api } from "@/lib/api";
+import type { ActivityLog, Automation, BookingWithJoins, DashboardSummary, Hotel, InvoiceWithJoins, Notification, Room, StaffWithJoins } from "@/lib/types";
 import type { Conversation } from "@/hooks/useMessages";
 import type { HousekeepingTask } from "@/hooks/useHousekeeping";
 import {
@@ -52,7 +52,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { formatAndConvert } from "@/utils/currency";
 import { useHousekeepingTasks } from "@/hooks/useHousekeeping";
 import { useInvoices } from "@/hooks/useInvoices";
-import { useGlobalStaff } from "@/hooks/useStaff";
+import { useGlobalStaff, useStaff } from "@/hooks/useStaff";
+import { useHotels, useHotel } from "@/hooks/useHotels";
+import { useDashboardSummary } from "@/hooks/useDashboard";
 import { useCurrency } from "@/contexts/AppSettingsContext";
 import { dayKey, latestDataDate, todayKey } from "@/components/dashboard/dashboardDates";
 import HousekeepingPage from "./Housekeeping";
@@ -77,6 +79,10 @@ export default function Dashboard() {
   const { data: conversations = [] } = useConversations();
   const { data: notifications = [] } = useNotifications();
   const { data: globalStaff = [] } = useGlobalStaff();
+  const { data: staffList = [] } = useStaff();
+  // Date-aware KPIs, arrivals / departures, housekeeping queue and trend
+  // arrays from GET /api/dashboard/summary (the single dashboard source).
+  const { data: summary } = useDashboardSummary();
 
   const isSuperAdminGlobal = role === "super_admin" && !selectedHotelId;
   const isPropertyView =
@@ -88,16 +94,17 @@ export default function Dashboard() {
 
   // Super-admin global aggregation: sum real per-hotel data. The hotels
   // table (not staff distinct hotel_ids) is the source of the hotel count.
+  const { data: hotelsList = [] } = useHotels();
   const { data: globalData } = useQuery({
     queryKey: ["global-dashboard"],
     queryFn: async () => {
-      const hotels = await mockStore.hotels.getAll();
+      const hotels = hotelsList;
       const perHotel = await Promise.all(
         hotels.map(async (hotel) => {
           const [hotelRooms, hotelBookings, hotelInvoices] = await Promise.all([
-            mockStore.rooms.getAll(hotel.id),
-            mockStore.bookings.getAll(hotel.id),
-            mockStore.invoices.getAll(hotel.id),
+            api.get<Array<{ id: string }>>("/api/rooms", { hotel_id: hotel.id }),
+            api.get<Array<{ id: string }>>("/api/bookings", { hotel_id: hotel.id }),
+            api.get<Array<{ paid_date: string | null; total: number }>>("/api/invoices", { hotel_id: hotel.id }),
           ]);
           const stats: HotelTableStats = {
             rooms: hotelRooms.length,
@@ -119,24 +126,18 @@ export default function Dashboard() {
         totalRevenue: perHotel.reduce((sum, entry) => sum + entry.stats.revenue, 0),
       };
     },
-    enabled: isSuperAdminGlobal,
+    enabled: isSuperAdminGlobal && hotelsList.length > 0,
   });
 
   // Staff: their own staff record, so "My tasks" shows only tasks assigned
   // to them. (useHousekeepingTasks only isolates the housekeeping role.)
-  const { data: myStaffRecord } = useQuery({
-    queryKey: ["my-staff-record", user?.id],
-    queryFn: () => mockStore.staff.getByUserId(user?.id ?? ""),
-    enabled: role === "staff" && !!user?.id,
-  });
+  const myStaffRecord = role === "staff" && user?.id
+    ? staffList.find((s) => s.user_id === user.id) ?? null
+    : null;
 
   // Name for the "viewing hotel" banner (the global query is disabled once
   // a hotel is selected, so it cannot supply this).
-  const { data: selectedHotel } = useQuery({
-    queryKey: ["selected-hotel", selectedHotelId],
-    queryFn: () => mockStore.hotels.getById(selectedHotelId ?? ""),
-    enabled: !!selectedHotelId,
-  });
+  const { data: selectedHotel } = useHotel(selectedHotelId);
 
   // Housekeeping role keeps its specialised task view.
   if (role === "housekeeping") {
@@ -160,6 +161,7 @@ export default function Dashboard() {
       notifications={notifications}
       globalStaff={globalStaff}
       globalData={globalData}
+      summary={summary}
       selectedHotelName={selectedHotel?.name ?? null}
       myStaffRecordId={myStaffRecord?.id ?? null}
       activeFilter={activeFilter}
@@ -203,6 +205,7 @@ interface DashboardContentProps {
   notifications: Notification[];
   globalStaff: StaffWithJoins[];
   globalData: GlobalDashboardData | undefined;
+  summary: DashboardSummary | null | undefined;
   myStaffRecordId: string | null;
   activeFilter: Room["status"] | null;
   setActiveFilter: (status: Room["status"] | null) => void;
@@ -235,6 +238,7 @@ function DashboardContent(props: DashboardContentProps) {
     notifications,
     globalStaff,
     globalData,
+    summary,
     myStaffRecordId,
     activeFilter,
     setActiveFilter,
@@ -254,16 +258,19 @@ function DashboardContent(props: DashboardContentProps) {
   const today = todayKey(now);
 
   // The seed data is from Feb 2024, so "today" (real calendar) has no
-  // bookings or payments. Anchor the trend charts to the latest date present
-  // in the records and say so, instead of plotting an empty range.
+  // bookings or payments. The summary anchors the range to the latest date
+  // present in the records and says so, instead of plotting an empty range.
+  // Until the summary loads, anchor to the lists the same way as before.
   const anchorDate = useMemo(
     () =>
-      latestDataDate([
-        ...bookings.flatMap((b) => [b.check_in, b.check_out, b.created_at]),
-        ...invoices.flatMap((inv) => [inv.paid_date, inv.created_at]),
-        ...activities.map((a) => a.created_at),
-      ]),
-    [bookings, invoices, activities],
+      summary
+        ? parseISO(summary.anchor_date)
+        : latestDataDate([
+            ...bookings.flatMap((b) => [b.check_in, b.check_out, b.created_at]),
+            ...invoices.flatMap((inv) => [inv.paid_date, inv.created_at]),
+            ...activities.map((a) => a.created_at),
+          ]),
+    [summary, bookings, invoices, activities],
   );
   const dataIsStale = dayKey(anchorDate) < today;
 
@@ -277,58 +284,62 @@ function DashboardContent(props: DashboardContentProps) {
   const cleaningRooms = countByStatus("cleaning");
   const maintenanceRooms = countByStatus("maintenance");
   const occupancyRate =
-    totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0;
+    summary?.occupancy_rate ??
+    (totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0);
 
-  // --- Today's arrivals / departures (day-key comparison, not datetimes) ---
-  const arrivals = bookings.filter(
-    (b) => b.status !== "cancelled" && dayKey(b.check_in) === today,
-  );
-  const departures = bookings.filter(
-    (b) => b.status !== "cancelled" && dayKey(b.check_out) === today,
-  );
+  // --- Today's arrivals / departures (from the summary's anchor day) -------
+  const arrivals =
+    summary?.arrivals ??
+    bookings.filter(
+      (b) => b.status !== "cancelled" && dayKey(b.check_in) === today,
+    );
+  const departures =
+    summary?.departures ??
+    bookings.filter(
+      (b) => b.status !== "cancelled" && dayKey(b.check_out) === today,
+    );
   const newBookingsToday = bookings.filter(
     (b) => dayKey(b.created_at) === today,
   ).length;
 
-  // --- Revenue from invoice `total` by `paid_date` --------------------------
-  const revenueInPeriod = (predicate: (paidDay: string) => boolean) =>
-    invoices
-      .filter((inv) => inv.paid_date && predicate(dayKey(inv.paid_date)))
-      .reduce((sum, inv) => sum + (Number(inv.total) || 0), 0);
-  const weekStart = dayKey(subDays(now, 6));
-  const monthPrefix = format(now, "yyyy-MM");
-  const yearPrefix = format(now, "yyyy");
-  const revenueToday = revenueInPeriod((d) => d === today);
-  const revenue7d = revenueInPeriod((d) => d >= weekStart && d <= today);
-  const revenueMonth = revenueInPeriod((d) => d.startsWith(monthPrefix));
-  const revenueYear = revenueInPeriod((d) => d.startsWith(yearPrefix));
+  // --- Revenue from the summary (invoice `total` by `paid_date`) -----------
+  const revenueToday = summary?.revenue_today ?? 0;
+  const revenue7d = summary?.revenue_7d ?? 0;
+  const revenueMonth = summary?.revenue_month ?? 0;
+  const revenueYear = summary?.revenue_year ?? 0;
 
-  // --- Outstanding balances: total - amount_paid on unpaid invoices --------
-  const outstanding = invoices
-    .filter(
+  // --- Outstanding balances: summary amount; the count comes from the
+  // invoice list (the summary only carries the amount) ----------------------
+  const outstanding = {
+    count: invoices.filter(
       (inv) =>
         inv.status !== "paid" &&
         inv.status !== "cancelled" &&
         inv.status !== "refunded" &&
         (Number(inv.total) || 0) - (Number(inv.amount_paid) || 0) > 0,
-    )
-    .reduce(
-      (acc, inv) => ({
-        count: acc.count + 1,
-        amount:
-          acc.amount + (Number(inv.total) || 0) - (Number(inv.amount_paid) || 0),
-      }),
-      { count: 0, amount: 0 },
-    );
+    ).length,
+    amount: summary?.outstanding ?? invoices
+      .filter(
+        (inv) =>
+          inv.status !== "paid" &&
+          inv.status !== "cancelled" &&
+          inv.status !== "refunded" &&
+          (Number(inv.total) || 0) - (Number(inv.amount_paid) || 0) > 0,
+      )
+      .reduce(
+        (sum, inv) => sum + (Number(inv.total) || 0) - (Number(inv.amount_paid) || 0),
+        0,
+      ),
+  };
 
   // --- Housekeeping / messages / alerts (real counts) -----------------------
   const pendingTasks = tasks.filter((t) => t.status === "pending");
   const overdueTasks = tasks.filter((t) => t.is_overdue);
-  const unreadMessages = conversations.reduce(
-    (sum, c) => sum + c.unread_count,
-    0,
-  );
-  const unreadNotifications = notifications.filter((n) => !n.is_read);
+  const unreadMessages =
+    summary?.unread_messages ??
+    conversations.reduce((sum, c) => sum + c.unread_count, 0);
+  const unreadNotifications =
+    summary?.unread_alerts ?? notifications.filter((n) => !n.is_read).length;
 
   // --- Staff: only their own tasks ------------------------------------------
   const myTasks = myStaffRecordId
@@ -599,7 +610,7 @@ function DashboardContent(props: DashboardContentProps) {
               <KPICard title="Pending Tasks" value={pendingTasks.length} subtitle="Housekeeping tasks awaiting start" icon={ListChecks} />
               <KPICard title="Overdue Tasks" value={overdueTasks.length} subtitle="Past their due time" icon={AlertTriangle} />
               <KPICard title="Unread Messages" value={unreadMessages} subtitle="Inbound messages not yet read" icon={MessageSquare} />
-              <KPICard title="Unread Alerts" value={unreadNotifications.length} subtitle="Notifications awaiting review" icon={Bell} />
+              <KPICard title="Unread Alerts" value={unreadNotifications} subtitle="Notifications awaiting review" icon={Bell} />
               <KPICard title="Outstanding Balances" value={formatAndConvert(outstanding.amount, currency)} subtitle={`${outstanding.count} unpaid invoice${outstanding.count === 1 ? "" : "s"}`} icon={Wallet} />
             </div>
 
@@ -615,6 +626,8 @@ function DashboardContent(props: DashboardContentProps) {
               totalRooms={totalRooms}
               anchorDate={anchorDate}
               currency={currency}
+              occupancyTrend={summary?.occupancy_trend}
+              revenueTrend={summary?.revenue_trend}
             />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

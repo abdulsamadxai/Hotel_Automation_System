@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { mockStore, type MessageCreateInput } from "@/lib/mockStore";
-import type { Message as CanonicalMessage, MessageChannel, MessageDirection } from "@/lib/types";
+import { api, hotelParams } from "@/lib/api";
+import type { Message as CanonicalMessage, MessageChannel, MessageDirection, MessageCreateInput } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -29,8 +29,7 @@ export function useMessages(guestId: string | null) {
         queryKey: ["messages", guestId, hotelId],
         queryFn: async () => {
             if (!guestId || !hotelId) return [];
-            const allMessages = await mockStore.messages.getAll(hotelId);
-            return allMessages.filter(m => m.guest_id === guestId);
+            return await api.get<Message[]>("/api/messages", { ...hotelParams(hotelId), guest_id: guestId });
         },
         enabled: !!guestId && !!hotelId,
     });
@@ -43,8 +42,8 @@ export function useConversations() {
         queryKey: ["conversations", hotelId],
         queryFn: async () => {
             if (!hotelId) return [];
-            const messages = await mockStore.messages.getAll(hotelId);
-            const guests = await mockStore.guests.getAll(hotelId);
+            const messages = await api.get<Message[]>("/api/messages", hotelParams(hotelId));
+            const guests = await api.get<Array<{ id: string; name: string }>>("/api/guests", hotelParams(hotelId));
 
             // Group messages by guest
             const conversationMap = new Map<string, Message[]>();
@@ -85,7 +84,6 @@ export function useConversations() {
 
 export function useSendMessage() {
     const queryClient = useQueryClient();
-    const { hotelId } = useAuth();
 
     return useMutation({
         mutationFn: async (msg: { guest_id: string; message: string; channel?: MessageChannel }) => {
@@ -96,7 +94,7 @@ export function useSendMessage() {
                 direction: 'outbound',
                 status: 'sent',
             };
-            return await mockStore.messages.create(input, hotelId);
+            return await api.post<Message>("/api/messages", input);
         },
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: ["messages", variables.guest_id] });
@@ -111,16 +109,12 @@ export function useSendMessage() {
 
 export function useDeleteConversation() {
     const queryClient = useQueryClient();
-    // useAuth() is called at the top level of the hook — never inside mutationFn.
-    const { hotelId } = useAuth();
 
     return useMutation({
         mutationFn: async (guestId: string) => {
-            if (!hotelId) throw new Error("Could not determine hotel property context.");
-            const messages = await mockStore.messages.getAll(hotelId);
-            const guestMessages = messages.filter(m => m.guest_id === guestId);
-            for (const msg of guestMessages) {
-                await mockStore.messages.delete(msg.id);
+            const messages = await api.get<Message[]>("/api/messages", { guest_id: guestId });
+            for (const msg of messages) {
+                await api.del(`/api/messages/${msg.id}`);
             }
         },
         onSuccess: () => {

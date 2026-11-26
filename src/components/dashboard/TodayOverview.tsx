@@ -1,19 +1,28 @@
+import { Link } from "react-router-dom";
 import { ArrowRight, LogIn, LogOut, CalendarCheck } from "lucide-react";
+import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 
 interface TodayOverviewProps {
   checkIns: number;
   checkOuts: number;
   newBookings: number;
+  /** The day these counts refer to (defaults to today). */
+  date?: Date;
 }
 
-export function TodayOverview({ checkIns, checkOuts, newBookings }: TodayOverviewProps) {
+export function TodayOverview({ checkIns, checkOuts, newBookings, date = new Date() }: TodayOverviewProps) {
   return (
     <div className="glass-card p-5">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold">Today's Overview</h3>
-        <Button variant="ghost" size="sm" className="text-xs gap-1">
-          View All <ArrowRight className="h-3 w-3" />
+        <div>
+          <h3 className="font-semibold">Today&apos;s Overview</h3>
+          <p className="text-xs text-muted-foreground">{format(date, "EEEE, MMM d, yyyy")}</p>
+        </div>
+        <Button variant="ghost" size="sm" className="text-xs gap-1" asChild>
+          <Link to="/bookings">
+            View All <ArrowRight className="h-3 w-3" />
+          </Link>
         </Button>
       </div>
       <div className="grid grid-cols-3 gap-4">

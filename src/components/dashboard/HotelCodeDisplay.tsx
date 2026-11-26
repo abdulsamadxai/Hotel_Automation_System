@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Shield, Copy, CheckCircle2, Zap, ShieldCheck, Loader2, Users } from "lucide-react";
+import { Shield, Copy, CheckCircle2, Zap, Loader2, Users } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { mockData } from "@/lib/mockData";
+import { mockStore } from "@/lib/mockStore";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
@@ -16,20 +16,19 @@ export function HotelCodeDisplay({ className, showManageButton = false }: HotelC
     const { hotelId, role } = useAuth();
     const [copied, setCopied] = useState(false);
 
+    // Read from the persisted store, not the static seed copy.
     const { data: hotel, isLoading } = useQuery({
         queryKey: ['hotel-details', hotelId],
         queryFn: async () => {
-            if (!hotelId) return null;
-            // Return mock hotel data
-            await new Promise(resolve => setTimeout(resolve, 100));
-            return mockData.hotels.find(h => h.id === hotelId) || mockData.hotels[0];
+            if (!hotelId || hotelId === 'global') return null;
+            return await mockStore.hotels.getById(hotelId) ?? null;
         },
         enabled: !!hotelId,
     });
 
     const copyToClipboard = () => {
         if (hotel?.access_code) {
-            navigator.clipboard.writeText(hotel.access_code);
+            void navigator.clipboard.writeText(hotel.access_code);
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         }
@@ -58,6 +57,7 @@ export function HotelCodeDisplay({ className, showManageButton = false }: HotelC
                         size="sm"
                         className="h-8 w-8 p-0 hover:bg-primary/10 transition-colors"
                         onClick={copyToClipboard}
+                        aria-label="Copy hotel access code"
                     >
                         {copied ? <CheckCircle2 className="h-4 w-4 text-status-success" /> : <Copy className="h-4 w-4" />}
                     </Button>

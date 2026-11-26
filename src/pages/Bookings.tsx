@@ -33,7 +33,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Plus, Search, MoreHorizontal, LogIn, LogOut, XCircle, FileText, Loader2, DollarSign, Trash2 } from "lucide-react";
-import { useBookings, useCreateBooking, useUpdateBooking, useUpdateBookingStatus, useDeleteBooking, BookingStatus } from "@/hooks/useBookings";
+import { useBookings, useCreateBooking, useUpdateBooking, useUpdateBookingStatus, useDeleteBooking, type Booking, type BookingStatus } from "@/hooks/useBookings";
+import type { PaymentStatus } from "@/lib/types";
 import { useRealtimeBookings } from "@/hooks/useActivity";
 import { useRooms } from "@/hooks/useRooms";
 import { useGuests, useCreateGuest } from "@/hooks/useGuests";
@@ -57,7 +58,7 @@ export default function Bookings() {
   const { currency } = useCurrency();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingBooking, setEditingBooking] = useState<any>(null);
+  const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeStatusFilter, setActiveStatusFilter] = useState<"confirmed" | "pending" | "checked-in" | "checked-out" | "cancelled" | null>(null);
   const [paymentMode, setPaymentMode] = useState<"pay_now" | "deposit" | "pay_later">("pay_later");
@@ -72,13 +73,16 @@ export default function Bookings() {
     guestType: "national" as "national" | "international",
   });
 
-  const handleOpenDialog = (booking?: any) => {
+  const handleOpenDialog = (booking?: Booking) => {
     if (booking) {
       setEditingBooking(booking);
+      // The joined guest on a booking carries no phone number, so look up
+      // the full guest record for the edit form.
+      const fullGuest = guests.find((g) => g.id === booking.guest_id);
       setFormData({
-        guestName: booking.guest?.name || "",
-        guestEmail: booking.guest?.email || "",
-        guestPhone: booking.guest?.phone || "",
+        guestName: fullGuest?.name ?? booking.guest?.name ?? "",
+        guestEmail: fullGuest?.email ?? booking.guest?.email ?? "",
+        guestPhone: fullGuest?.phone ?? "",
         roomId: booking.room_id || "",
         checkIn: booking.check_in,
         checkOut: booking.check_out,
@@ -97,10 +101,16 @@ export default function Bookings() {
   const availableRooms = rooms.filter((r) => r.status === "available" || (editingBooking && r.id === editingBooking.room_id));
 
   const selectedRoom = rooms.find(r => r.id === formData.roomId);
+  // Raw night count — never coerced to a minimum of 1. A check-out on or
+  // before check-in is invalid (see dateError) and must refuse to submit.
   const nights = formData.checkIn && formData.checkOut
-    ? Math.max(1, Math.ceil((new Date(formData.checkOut).getTime() - new Date(formData.checkIn).getTime()) / (1000 * 60 * 60 * 24)))
+    ? Math.ceil((new Date(formData.checkOut).getTime() - new Date(formData.checkIn).getTime()) / (1000 * 60 * 60 * 24))
     : 0;
-  const totalAmount = selectedRoom ? selectedRoom.rate * nights : 0;
+  const dateError =
+    formData.checkIn && formData.checkOut && nights <= 0
+      ? "Check-out date must be after check-in date."
+      : null;
+  const totalAmount = selectedRoom ? selectedRoom.price_per_night * nights : 0;
 
   const handleDeleteBooking = async (id: string) => {
     if (confirm("Are you sure you want to delete this booking? This action cannot be undone.")) {
@@ -109,21 +119,37 @@ export default function Bookings() {
   };
 
   const handleStatusChange = async (id: string, status: BookingStatus) => {
-    await updateStatus.mutateAsync({ id, status });
+    try {
+      await updateStatus.mutateAsync({ id, status });
+    } catch {
+      // The hook already toasts the store error; do not claim success.
+      return;
+    }
     if (status === "checked_out") {
+      // Only reached after a successful check-out. The store creates the
+      // final invoice (and the housekeeping task) as part of that update.
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       toast({ title: "Final invoice generated", description: "The checkout invoice is now available in Billing." });
     }
   };
 
   const handleSaveBooking = async () => {
+    // Refuse invalid date ranges before creating anything (a guest created
+    // first would otherwise be orphaned when the booking is refused).
+    if (dateError) {
+      toast({ title: "Invalid dates", description: dateError, variant: "destructive" });
+      return;
+    }
     try {
       if (editingBooking) {
+        // Re-save the total recomputed from the canonical nightly price.
+        // The store does not recompute totals on update, so the page must.
         await updateBooking.mutateAsync({
           id: editingBooking.id,
           check_in: formData.checkIn,
           check_out: formData.checkOut,
           room_id: formData.roomId,
+          nights,
           total_amount: totalAmount,
         });
       } else {
@@ -136,18 +162,37 @@ export default function Bookings() {
         if (existingGuest) {
           customerId = existingGuest.id;
         } else {
+          // Check availability BEFORE creating the guest: if the booking
+          // is then refused for overlap, the new guest would be orphaned.
+          const overlap = bookings.some(
+            (b) =>
+              b.room_id === formData.roomId &&
+              b.status !== 'cancelled' &&
+              new Date(b.check_in) < new Date(formData.checkOut) &&
+              new Date(formData.checkIn) < new Date(b.check_out),
+          );
+          if (overlap) {
+            toast({
+              title: "Room is already booked for the selected dates",
+              description: "Choose different dates or another room.",
+              variant: "destructive",
+            });
+            return;
+          }
           const newCustomer = await createGuest.mutateAsync({
             name: formData.guestName,
             email: formData.guestEmail || null,
             phone: formData.guestPhone || null,
-            tags: ["regular"],
+            // International guests are classified as VIP, as the form
+            // states; national guests start untagged.
+            tags: formData.guestType === "international" ? ["vip"] : [],
             notes: null,
           });
           customerId = newCustomer.id;
         }
 
         let deposit = 0;
-        let paymentStatus = "pending";
+        let paymentStatus: PaymentStatus = "pending";
 
         if (paymentMode === "pay_now") {
           deposit = totalAmount;
@@ -157,7 +202,10 @@ export default function Bookings() {
           paymentStatus = "partially_paid";
         }
 
-        const booking = await createBooking.mutateAsync({
+        // The store computes the authoritative total as
+        // price_per_night x nights and throws on bad dates, overlapping
+        // bookings for the room, or a blocked guest.
+        await createBooking.mutateAsync({
           guest_id: customerId,
           room_id: formData.roomId,
           check_in: formData.checkIn,
@@ -169,7 +217,6 @@ export default function Bookings() {
           deposit_amount: deposit
         });
 
-        // Invoice will be created by mock store hooks automatically
         queryClient.invalidateQueries({ queryKey: ["invoices"] });
       }
 
@@ -178,13 +225,11 @@ export default function Bookings() {
       setFormData({ guestName: "", guestEmail: "", guestPhone: "", roomId: "", checkIn: "", checkOut: "", depositAmount: "", guestType: "national" });
       toast({ title: editingBooking ? "Booking updated successfully" : "Booking created successfully" });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+      // No toast here: the hook's onError already toasts the store's
+      // reason (overlap, blocked guest, bad dates). Toasting again would
+      // stack two error toasts for one failed booking.
       console.error("Booking operation error:", error);
-      toast({
-        title: "Failed to process booking",
-        description: error.message || "Unknown error occurred",
-        variant: "destructive"
-      });
     }
   };
 
@@ -291,7 +336,7 @@ export default function Bookings() {
                 <Label>Guest Classification *</Label>
                 <RadioGroup
                   value={formData.guestType}
-                  onValueChange={(v: any) => setFormData({ ...formData, guestType: v })}
+                  onValueChange={(v: string) => setFormData({ ...formData, guestType: v as "national" | "international" })}
                   className="flex gap-4"
                 >
                   <div className="flex items-center space-x-2">
@@ -320,7 +365,7 @@ export default function Bookings() {
                     <SelectContent>
                       {availableRooms.map((room) => (
                         <SelectItem key={room.id} value={room.id}>
-                          Room {room.number} - {room.type} ({formatAndConvert(room.rate, currency)}/night)
+                          Room {room.number} - {room.type} ({formatAndConvert(room.price_per_night, currency)}/night)
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -344,18 +389,21 @@ export default function Bookings() {
                     />
                   </div>
                 </div>
+                {dateError && (
+                  <p className="text-sm text-destructive mt-2" role="alert">{dateError}</p>
+                )}
               </div>
 
               {totalAmount > 0 && !editingBooking && (
                 <div className="bg-muted/30 p-3 rounded-md border border-border">
                   <div className="flex justify-between items-center mb-2">
-                    <span className="text-muted-foreground">{nights} nights x {formatAndConvert(selectedRoom?.rate || 0, currency)}</span>
+                    <span className="text-muted-foreground">{nights} nights x {formatAndConvert(selectedRoom?.price_per_night ?? 0, currency)}</span>
                     <span className="font-bold text-lg">{formatAndConvert(totalAmount, currency)}</span>
                   </div>
 
                   <div className="space-y-3 pt-2 border-t border-border">
                     <Label>Payment Mode</Label>
-                    <RadioGroup value={paymentMode} onValueChange={(v: any) => setPaymentMode(v)} className="flex flex-col gap-2">
+                    <RadioGroup value={paymentMode} onValueChange={(v: string) => setPaymentMode(v as "pay_now" | "deposit" | "pay_later")} className="flex flex-col gap-2">
                       <div className="flex items-center space-x-2">
                         <RadioGroupItem value="pay_later" id="later" />
                         <Label htmlFor="later">Pay at Checkout</Label>
@@ -391,7 +439,7 @@ export default function Bookings() {
 
               <Button
                 onClick={handleSaveBooking}
-                disabled={createBooking.isPending || updateBooking.isPending || !formData.guestName || !formData.roomId || !formData.checkIn || !formData.checkOut}
+                disabled={createBooking.isPending || updateBooking.isPending || !formData.guestName || !formData.roomId || !formData.checkIn || !formData.checkOut || !!dateError}
                 className="w-full mt-2"
               >
                 {createBooking.isPending || updateBooking.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingBooking ? "Update Booking" : `Confirm Booking (${formatAndConvert(paymentMode === "pay_now" ? totalAmount : (paymentMode === "deposit" ? parseFloat(formData.depositAmount) || 0 : 0), currency)} Paid)`)}

@@ -5,13 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Building2, Users, Bell, Shield, Database, Zap, Loader2, Camera, Copy, CheckCircle2, Image as ImageIcon } from "lucide-react";
-import { useTheme, useCurrency } from "@/contexts/AppSettingsContext";
-import { CURRENCIES, type Currency } from "@/utils/currency";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Building2, Users, Shield, Database, Zap, Loader2, Camera, Copy, CheckCircle2, Image as ImageIcon } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { mockData } from "@/lib/mockData";
+import { useHotel, useUpdateHotel } from "@/hooks/useHotels";
 import { useState, useRef, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
@@ -22,17 +18,8 @@ import { HotelCodeDisplay } from "@/components/dashboard/HotelCodeDisplay";
 
 export default function Settings() {
   const { hotelId, role } = useAuth();
-  const { data: hotel } = useQuery({
-    queryKey: ['hotel-info', hotelId],
-    queryFn: async () => {
-      if (!hotelId) return null;
-      // Return mock hotel data
-      return mockData.hotels.find(h => h.id === hotelId) || mockData.hotels[0];
-    },
-    enabled: !!hotelId
-  });
+  const { data: hotel } = useHotel(hotelId);
 
-  const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // States for form
@@ -49,26 +36,19 @@ export default function Settings() {
     }
   }, [hotel]);
 
-  const updateHotel = useMutation({
-    mutationFn: async (updates: { name: string; location: string; logo_url: string }) => {
-      // Mock implementation - in real app would update backend
-      await new Promise(resolve => setTimeout(resolve, 500));
-      return { ...hotel, ...updates };
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['hotel-info', hotelId] });
-      toast({ title: "Settings updated", description: "Your hotel branding has been updated successfully." });
-    },
-    onError: (error: any) => {
-      toast({ title: "Update failed", description: error.message, variant: "destructive" });
-    }
-  });
+  // Persists through the store (mockStore.hotels.update writes to the
+  // persisted store state), so a reload keeps the change.
+  const updateHotel = useUpdateHotel(hotelId);
 
   const handleSave = () => {
+    if (!hotel) return;
     updateHotel.mutate({
-      name: hotelName || hotel?.name || "",
-      location: hotelLocation || hotel?.location || "",
-      logo_url: logoUrl || hotel?.logo_url || ""
+      id: hotel.id,
+      updates: {
+        name: hotelName || hotel.name || "",
+        location: hotelLocation || hotel.location || "",
+        logo_url: logoUrl || hotel.logo_url || "",
+      },
     });
   };
 
@@ -113,10 +93,6 @@ export default function Settings() {
               Users
             </TabsTrigger>
 
-            <TabsTrigger value="notifications" className="gap-2">
-              <Bell className="h-4 w-4" />
-              Notifications
-            </TabsTrigger>
             <TabsTrigger value="automation" className="gap-2">
               <Zap className="h-4 w-4" />
               Automation
@@ -300,29 +276,10 @@ export default function Settings() {
             </div>
           </TabsContent>
 
-          {/* Notifications Settings */}
-          <TabsContent value="notifications">
-            <div className="glass-card p-6 space-y-6">
-              <h3 className="text-lg font-semibold">Notification Preferences</h3>
-              <div className="space-y-4">
-                {[
-                  { label: "New booking alerts", description: "Get notified when new bookings are created", enabled: true },
-                  { label: "Check-in reminders", description: "Alerts for upcoming guest check-ins", enabled: true },
-                  { label: "Housekeeping updates", description: "Task completion notifications", enabled: false },
-                  { label: "Overdue task alerts", description: "Escalation when tasks are overdue", enabled: true },
-                  { label: "Financial alerts", description: "Payment and invoice notifications", enabled: true },
-                ].map((item, index) => (
-                  <div key={index} className="flex items-center justify-between py-3 border-b border-white/5 last:border-0">
-                    <div>
-                      <p className="font-medium">{item.label}</p>
-                      <p className="text-sm text-muted-foreground">{item.description}</p>
-                    </div>
-                    <Switch defaultChecked={item.enabled} />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </TabsContent>
+          {/* Notification preferences were removed: the toggles were
+              hardcoded and wired to nothing, and there is no persisted
+              notification-preference store to wire them to. Re-add this tab
+              only with a real preference store behind it. */}
 
           {/* Automation Settings */}
           <TabsContent value="automation">

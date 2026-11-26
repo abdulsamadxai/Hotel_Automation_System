@@ -1,6 +1,4 @@
-import { Building2, LogIn, Loader2 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { mockData } from "@/lib/mockData";
+import { Building2, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
     Table,
@@ -10,23 +8,26 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
+import type { Hotel } from "@/lib/types";
+import type { Currency } from "@/utils/currency";
+import { formatAndConvert } from "@/utils/currency";
+
+/** Real per-hotel counts, aggregated by the dashboard (never invented). */
+export interface HotelTableStats {
+    rooms: number;
+    bookings: number;
+    /** Sum of `total` over invoices with a paid_date. */
+    revenue: number;
+}
 
 interface SuperAdminHotelTableProps {
+    hotels: Hotel[];
+    stats: Record<string, HotelTableStats>;
+    currency: Currency;
     onSelectHotel: (id: string) => void;
 }
 
-export function SuperAdminHotelTable({ onSelectHotel }: SuperAdminHotelTableProps) {
-    const { data: hotels = [], isLoading } = useQuery({
-        queryKey: ['all-hotels'],
-        queryFn: async () => {
-            // Return mock hotels data
-            await new Promise(resolve => setTimeout(resolve, 300));
-            return mockData.hotels;
-        }
-    });
-
-    if (isLoading) return <div className="p-8 flex justify-center"><Loader2 className="animate-spin text-primary" /></div>;
-
+export function SuperAdminHotelTable({ hotels, stats, currency, onSelectHotel }: SuperAdminHotelTableProps) {
     return (
         <div className="glass-card overflow-hidden animate-fade-in border border-white/5 shadow-glow">
             <div className="p-6 border-b border-white/5 flex items-center justify-between bg-primary/5">
@@ -40,32 +41,43 @@ export function SuperAdminHotelTable({ onSelectHotel }: SuperAdminHotelTableProp
                     </div>
                 </div>
             </div>
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>Hotel ID</TableHead>
-                        <TableHead>Hotel Name</TableHead>
-                        <TableHead>Owner</TableHead>
-                        <TableHead>Location</TableHead>
-                        <TableHead className="text-right">Action</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {hotels.map((hotel: any) => (
-                        <TableRow key={hotel.id} className="hover:bg-primary/5 transition-colors">
-                            <TableCell className="font-mono text-xs">{hotel.id}</TableCell>
-                            <TableCell className="font-bold">{hotel.name}</TableCell>
-                            <TableCell>{hotel.owner_name || 'N/A'}</TableCell>
-                            <TableCell className="text-muted-foreground">{hotel.location || 'Unknown'}</TableCell>
-                            <TableCell className="text-right">
-                                <Button size="sm" onClick={() => onSelectHotel(hotel.id)} className="gap-2">
-                                    <LogIn className="h-3 w-3" /> Select Hotel
-                                </Button>
-                            </TableCell>
+            {hotels.length === 0 ? (
+                <p className="p-6 text-sm text-muted-foreground">No hotels registered yet.</p>
+            ) : (
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Hotel Name</TableHead>
+                            <TableHead>Owner</TableHead>
+                            <TableHead>Location</TableHead>
+                            <TableHead className="text-right">Rooms</TableHead>
+                            <TableHead className="text-right">Bookings</TableHead>
+                            <TableHead className="text-right">Revenue collected</TableHead>
+                            <TableHead className="text-right">Action</TableHead>
                         </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
+                    </TableHeader>
+                    <TableBody>
+                        {hotels.map((hotel) => {
+                            const hotelStats = stats[hotel.id] ?? { rooms: 0, bookings: 0, revenue: 0 };
+                            return (
+                                <TableRow key={hotel.id} className="hover:bg-primary/5 transition-colors">
+                                    <TableCell className="font-bold">{hotel.name}</TableCell>
+                                    <TableCell>{hotel.owner_name || 'N/A'}</TableCell>
+                                    <TableCell className="text-muted-foreground">{hotel.location || 'Unknown'}</TableCell>
+                                    <TableCell className="text-right">{hotelStats.rooms}</TableCell>
+                                    <TableCell className="text-right">{hotelStats.bookings}</TableCell>
+                                    <TableCell className="text-right">{formatAndConvert(hotelStats.revenue, currency)}</TableCell>
+                                    <TableCell className="text-right">
+                                        <Button size="sm" onClick={() => onSelectHotel(hotel.id)} className="gap-2">
+                                            <LogIn className="h-3 w-3" /> Select Hotel
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            );
+                        })}
+                    </TableBody>
+                </Table>
+            )}
         </div>
     );
 }

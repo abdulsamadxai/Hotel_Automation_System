@@ -1,31 +1,21 @@
-import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, CheckCircle2, Clock, Zap, X, Loader2, Bell } from "lucide-react";
+import { AlertCircle, AlertTriangle, CheckCircle2, Clock, Info, Zap, X, Loader2, Bell, Trash2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
-import { useNotifications, useMarkAsRead, useMarkAllAsRead } from "@/hooks/useNotifications";
-import { useAuth } from "@/hooks/useAuth";
+import { useNotifications, useMarkAsRead, useMarkAllAsRead, useDeleteNotification, type NotificationType } from "@/hooks/useNotifications";
 
-interface Notification {
-  id: string;
-  title: string;
-  message: string;
-  type: "booking" | "task" | "alert" | "automation" | "room";
-  is_read?: boolean;
-  read?: boolean;
-  link: string | null;
-  metadata: Record<string, unknown> | null;
-  created_at: string;
-}
-
-const typeConfig: Record<string, { color: string; bg: string; icon: typeof AlertCircle }> = {
+/** One icon per known notification type — no generic fallback for known types. */
+const typeConfig: Record<NotificationType, { color: string; bg: string; icon: typeof AlertCircle }> = {
   alert: { color: "text-status-error", bg: "bg-status-error/10", icon: AlertCircle },
   task: { color: "text-status-warning", bg: "bg-status-warning/10", icon: Clock },
   booking: { color: "text-status-info", bg: "bg-status-info/10", icon: Bell },
   automation: { color: "text-primary", bg: "bg-primary/10", icon: Zap },
   room: { color: "text-muted-foreground", bg: "bg-muted", icon: Bell },
+  info: { color: "text-status-info", bg: "bg-status-info/10", icon: Info },
+  warning: { color: "text-status-warning", bg: "bg-status-warning/10", icon: AlertTriangle },
+  success: { color: "text-status-success", bg: "bg-status-success/10", icon: CheckCircle2 },
 };
 
 
@@ -33,11 +23,12 @@ export default function Alerts() {
   const { data: notifications = [], isLoading } = useNotifications();
   const markRead = useMarkAsRead();
   const markAllRead = useMarkAllAsRead();
+  const deleteNotification = useDeleteNotification();
 
-  const unread = notifications.filter((n) => !(n.is_read || n.read)).length;
+  const unread = notifications.filter((n) => !n.is_read).length;
   const alertCount = notifications.filter((n) => n.type === "alert").length;
   const automationCount = notifications.filter((n) => n.type === "automation").length;
-  const readCount = notifications.filter((n) => (n.is_read || n.read)).length;
+  const readCount = notifications.filter((n) => n.is_read).length;
 
   const handleAcknowledge = async (id: string) => {
     await markRead.mutateAsync(id);
@@ -47,6 +38,11 @@ export default function Alerts() {
     // For mock implementation, we'll just mark as read
     await markRead.mutateAsync(id);
     toast({ title: "Notification dismissed" });
+  };
+
+  const handleDelete = async (id: string) => {
+    await deleteNotification.mutateAsync(id);
+    toast({ title: "Notification deleted" });
   };
 
   const handleMarkAllRead = async () => {
@@ -146,7 +142,7 @@ export default function Alerts() {
             </div>
           ) : (
             notifications.map((notification) => {
-              const config = typeConfig[notification.type] || typeConfig.room;
+              const config = typeConfig[notification.type];
               const IconComponent = config.icon;
 
               return (
@@ -204,10 +200,21 @@ export default function Alerts() {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8"
+                            aria-label="Dismiss notification"
                             onClick={() => handleDismiss(notification.id)}
-                            disabled={deleteNotification.isPending}
+                            disabled={markRead.isPending}
                           >
                             <X className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            aria-label="Delete notification"
+                            onClick={() => handleDelete(notification.id)}
+                            disabled={deleteNotification.isPending}
+                          >
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
                       </div>

@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
-import { Bell, Search, LogOut, User, Settings } from "lucide-react";
+import { Bell, Search, LogOut, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useUnreadCount } from "@/hooks/useNotifications";
@@ -17,14 +17,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-interface ProtectedRouteProps {
-  children: React.ReactNode;
-  allowedRoles?: UserRole[];
-}
-
 interface AppLayoutProps {
   children: ReactNode;
 }
+
+/** Roles allowed on /settings by the route guard in App.tsx. */
+const SETTINGS_ROLES: UserRole[] = ['owner', 'manager', 'super_admin'];
 
 export function AppLayout({ children }: AppLayoutProps) {
   const navigate = useNavigate();
@@ -45,8 +43,8 @@ export function AppLayout({ children }: AppLayoutProps) {
         return "U";
       }
     }
-    if (user?.role) {
-      return user.role.slice(0, 2).toUpperCase();
+    if (user?.user_metadata?.role) {
+      return user.user_metadata.role.slice(0, 2).toUpperCase();
     }
     return "U";
   };
@@ -105,10 +103,12 @@ export function AppLayout({ children }: AppLayoutProps) {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => navigate("/settings")}>
-                    <Settings className="mr-2 h-4 w-4" />
-                    Settings
-                  </DropdownMenuItem>
+                  {SETTINGS_ROLES.includes(role) && (
+                    <DropdownMenuItem onClick={() => navigate("/settings")}>
+                      <Settings className="mr-2 h-4 w-4" />
+                      Settings
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">
                     <LogOut className="mr-2 h-4 w-4" />

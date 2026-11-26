@@ -37,6 +37,7 @@ const taskTypeLabels: Record<TaskType, string> = {
   checkout_clean: "Checkout Clean",
   stay_clean: "Stay Clean",
   deep_clean: "Deep Clean",
+  daily_clean: "Daily Clean",
   inspection: "Inspection",
   maintenance: "Maintenance",
 };
@@ -49,21 +50,22 @@ const priorityColors: Record<TaskPriority, string> = {
 
 export default function Housekeeping() {
   useRealtimeHousekeeping();
-  const { role, user } = useAuth();
+  const { role } = useAuth();
   const { data: allTasks = [], isLoading } = useHousekeepingTasks();
 
-  // Notification for Housekeeping
+  // Notification for Housekeeping — the hook already filters to the
+  // housekeeper's own tasks (by `assigned_to`), so `allTasks` is their list.
+  const pendingCount = role === 'housekeeping'
+    ? allTasks.filter(t => t.status === 'pending').length
+    : 0;
   useEffect(() => {
-    if (role === 'housekeeping') {
-      const pendingCount = allTasks.filter(t => t.status === 'pending').length;
-      if (pendingCount > 0) {
-        toast({
-          title: "Tasks Notification",
-          description: `You have ${pendingCount} pending cleaning tasks assigned to you.`,
-        });
-      }
+    if (role === 'housekeeping' && pendingCount > 0) {
+      toast({
+        title: "Tasks Notification",
+        description: `You have ${pendingCount} pending cleaning tasks assigned to you.`,
+      });
     }
-  }, [allTasks.length, role]);
+  }, [pendingCount, role]);
   const { data: rooms = [] } = useRooms();
   const { data: staffMembers = [] } = useStaff();
   const createTask = useCreateTask();
@@ -72,11 +74,9 @@ export default function Housekeeping() {
   const assignTask = useAssignTask();
   const deleteTask = useDeleteTask();
 
-  const currentStaffMember = staffMembers.find(s => s.user_id === user?.id);
-
-  const tasks = role === 'housekeeping'
-    ? allTasks.filter(t => t.assignee_id === currentStaffMember?.id)
-    : allTasks;
+  // No re-filtering here: useHousekeepingTasks already returns only the
+  // housekeeper's own tasks for role 'housekeeping' (filtered by assigned_to).
+  const tasks = allTasks;
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<HousekeepingTask | null>(null);
@@ -84,7 +84,7 @@ export default function Housekeeping() {
     roomId: "",
     type: "checkout_clean" as TaskType,
     priority: "medium" as TaskPriority,
-    assigneeId: "",
+    assignedTo: "",
   });
 
   const handleOpenDialog = (task?: HousekeepingTask) => {
@@ -94,19 +94,18 @@ export default function Housekeeping() {
         roomId: task.room_id,
         type: task.type,
         priority: task.priority,
-        assigneeId: task.assignee_id || "",
+        assignedTo: task.assigned_to || "",
       });
     } else {
       setEditingTask(null);
-      setFormData({ roomId: "", type: "checkout_clean", priority: "medium", assigneeId: "" });
+      setFormData({ roomId: "", type: "checkout_clean", priority: "medium", assignedTo: "" });
     }
     setIsDialogOpen(true);
   };
 
-  const statusCounts = tasks.reduce((acc, task) => {
-    acc[task.status] = (acc[task.status] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
+  // Overdue is derived by the hook (`is_overdue`: due_at passed, not completed),
+  // not the stored status — a stored 'overdue' status is never set by the store.
+  const overdueCount = tasks.filter((t) => t.is_overdue).length;
 
   const housekeepingStaff = staffMembers.filter((s) => s.role === "housekeeping");
 
@@ -117,20 +116,20 @@ export default function Housekeeping() {
         room_id: formData.roomId,
         type: formData.type,
         priority: formData.priority,
-        assignee_id: formData.assigneeId || undefined,
+        assigned_to: formData.assignedTo || null,
       });
     } else {
       await createTask.mutateAsync({
         room_id: formData.roomId,
         type: formData.type,
         priority: formData.priority,
-        assignee_id: formData.assigneeId || undefined,
+        assigned_to: formData.assignedTo || null,
         due_at: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
       });
     }
     setIsDialogOpen(false);
     setEditingTask(null);
-    setFormData({ roomId: "", type: "checkout_clean", priority: "medium", assigneeId: "" });
+    setFormData({ roomId: "", type: "checkout_clean", priority: "medium", assignedTo: "" });
   };
 
   const handleStartTask = async (taskId: string) => {
@@ -141,8 +140,8 @@ export default function Housekeeping() {
     await updateStatus.mutateAsync({ id: taskId, status: "completed" });
   };
 
-  const handleAssignTask = async (taskId: string, assigneeId: string) => {
-    await assignTask.mutateAsync({ id: taskId, assignee_id: assigneeId });
+  const handleAssignTask = async (taskId: string, assignedTo: string) => {
+    await assignTask.mutateAsync({ id: taskId, assigned_to: assignedTo });
   };
 
   if (isLoading) {
@@ -238,8 +237,8 @@ export default function Housekeeping() {
               <div className="space-y-2">
                 <Label>Assign To</Label>
                 <Select
-                  value={formData.assigneeId}
-                  onValueChange={(v) => setFormData({ ...formData, assigneeId: v })}
+                  value={formData.assignedTo}
+                  onValueChange={(v) => setFormData({ ...formData, assignedTo: v })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select staff member" />
@@ -247,7 +246,7 @@ export default function Housekeeping() {
                   <SelectContent>
                     {housekeepingStaff.map((staff) => (
                       <SelectItem key={staff.id} value={staff.id}>
-                        {staff.name}
+                        {staff.full_name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -266,19 +265,19 @@ export default function Housekeeping() {
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="glass-card p-4 text-center">
-            <p className="text-2xl font-bold">{statusCounts.pending || 0}</p>
+            <p className="text-2xl font-bold">{tasks.filter((t) => t.status === 'pending').length}</p>
             <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Pending</p>
           </div>
           <div className="glass-card p-4 text-center">
-            <p className="text-2xl font-bold text-status-info">{statusCounts.in_progress || 0}</p>
+            <p className="text-2xl font-bold text-status-info">{tasks.filter((t) => t.status === 'in_progress').length}</p>
             <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">In Progress</p>
           </div>
           <div className="glass-card p-4 text-center">
-            <p className="text-2xl font-bold text-status-success">{statusCounts.completed || 0}</p>
+            <p className="text-2xl font-bold text-status-success">{tasks.filter((t) => t.status === 'completed').length}</p>
             <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Completed</p>
           </div>
           <div className="glass-card p-4 text-center">
-            <p className="text-2xl font-bold text-status-error">{statusCounts.overdue || 0}</p>
+            <p className="text-2xl font-bold text-status-error">{overdueCount}</p>
             <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Overdue</p>
           </div>
         </div>
@@ -317,7 +316,7 @@ export default function Housekeeping() {
                 {tasks.map((task) => (
                   <TableRow
                     key={task.id}
-                    className={`border-border hover:bg-muted/30 ${task.status === "overdue" ? "bg-status-error/5" : ""}`}
+                    className={`border-border hover:bg-muted/30 ${task.is_overdue ? "bg-status-error/5" : ""}`}
                   >
                     <TableCell className="font-mono text-sm">{task.task_number}</TableCell>
                     <TableCell className="font-medium">Room {task.room?.number || "N/A"}</TableCell>
@@ -327,7 +326,7 @@ export default function Housekeeping() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      {task.assignee?.name || (
+                      {task.assignee?.full_name || (
                         role !== 'housekeeping' ? (
                           <Select onValueChange={(v) => handleAssignTask(task.id, v)}>
                             <SelectTrigger className="w-32 h-8">
@@ -336,7 +335,7 @@ export default function Housekeeping() {
                             <SelectContent>
                               {housekeepingStaff.map((staff) => (
                                 <SelectItem key={staff.id} value={staff.id}>
-                                  {staff.name}
+                                  {staff.full_name}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -348,7 +347,7 @@ export default function Housekeeping() {
                       {task.due_at ? format(new Date(task.due_at), "h:mm a") : "N/A"}
                     </TableCell>
                     <TableCell>
-                      <StatusBadge status={task.status} />
+                      <StatusBadge status={task.is_overdue ? "overdue" : task.status} />
                     </TableCell>
                     <TableCell>
                       {task.automation_triggered && (

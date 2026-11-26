@@ -46,8 +46,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useCurrency } from "@/contexts/AppSettingsContext";
 import { formatAndConvert } from "@/utils/currency";
 import { useAuth } from "@/hooks/useAuth";
-import { format, isToday } from "date-fns";
+import { format } from "date-fns";
+import { mockStore } from "@/lib/mockStore";
+import type { Hotel } from "@/lib/types";
 import { useInvoices, useCreateInvoice, useUpdateInvoice, useDeleteInvoice, type Invoice, type LineItem } from "@/hooks/useInvoices";
+
+/** Tax rate applied to invoice line-item subtotals (matches the 10% seed data). */
+const TAX_RATE = 0.1;
+
+/** Tax on a subtotal, rounded to cents. */
+const calculateTax = (subtotal: number): number =>
+  Math.round(subtotal * TAX_RATE * 100) / 100;
 
 export default function Billing() {
   const { data: invoices = [], isLoading } = useInvoices();
@@ -72,9 +81,25 @@ export default function Billing() {
     line_items: [] as LineItem[],
   });
 
-  const { role } = useAuth();
+  const { hotelId } = useAuth();
 
   const [isEmailing, setIsEmailing] = useState(false);
+
+  // Hotel record from the store, for the invoice preview header.
+  const [hotel, setHotel] = useState<Hotel | null>(null);
+  useEffect(() => {
+    if (!hotelId || hotelId === "global") {
+      setHotel(null);
+      return;
+    }
+    let cancelled = false;
+    mockStore.hotels.getById(hotelId).then((h) => {
+      if (!cancelled) setHotel(h ?? null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [hotelId]);
 
   const handlePrint = () => {
     setIsPreviewOpen(true);
@@ -84,8 +109,8 @@ export default function Billing() {
   };
 
   const handleEmail = async (invoice: Invoice) => {
-    if (!invoice.guest?.name) {
-      toast({ title: "Recipient missing", description: "This invoice is not linked to a guest.", variant: "destructive" });
+    if (!invoice.guest?.email) {
+      toast({ title: "Recipient missing", description: "This invoice is not linked to a guest with an email address.", variant: "destructive" });
       return;
     }
 
@@ -95,24 +120,25 @@ export default function Billing() {
       description: `Preparing invoice #${invoice.invoice_number} for delivery.`,
     });
 
-    // Simulate PDF generation and transport
+    // Simulate PDF generation and transport (no real email is sent).
     await new Promise(r => setTimeout(r, 2000));
 
     setIsEmailing(false);
     toast({
       title: "Invoice Sent Successfully",
-      description: `A PDF version of invoice ${invoice.invoice_number} has been sent to ${invoice.guest?.name}.`,
+      description: `A PDF version of invoice ${invoice.invoice_number} has been sent to ${invoice.guest.email}.`,
     });
   };
 
 
-  // Calculate totals for dashboard - Managers only see TODAY
-  const filteredInvoices = role === 'manager'
-    ? invoices.filter(i => isToday(new Date(i.created_at)))
-    : invoices;
+  // All invoices are visible to every role — no date restriction.
+  const filteredInvoices = invoices;
 
-  const totalRevenue = filteredInvoices.filter((i) => i.status === "paid").reduce((sum, i) => sum + i.amount, 0);
-  const pendingRevenue = filteredInvoices.filter((i) => i.status !== "paid").reduce((sum, i) => sum + (i.amount - (i.amount_paid || 0)), 0);
+  // Revenue is computed from the authoritative total (total = amount + tax).
+  const totalRevenue = filteredInvoices.filter((i) => i.status === "paid").reduce((sum, i) => sum + i.total, 0);
+  const pendingRevenue = filteredInvoices
+    .filter((i) => i.status === "pending" || i.status === "partially_paid")
+    .reduce((sum, i) => sum + Math.max(0, i.total - (i.amount_paid ?? 0)), 0);
 
   // Auto-fill logic when Guest is selected
   useEffect(() => {
@@ -126,7 +152,6 @@ export default function Billing() {
       if (activeBooking) {
         // Here we default to creating an invoice for the FULL REMAINING Amount
         // Assuming current invoice covers remaining balance.
-        // @ts-ignore
         const paid = activeBooking.deposit_amount || 0;
         const outstanding = Math.max(0, activeBooking.total_amount - paid);
 
@@ -149,34 +174,38 @@ export default function Billing() {
 
 
   // ---- Invoice Editor Logic (Shared) ----
-  const handleAddLineItem = (targetLines: LineItem[], setLines: (l: LineItem[]) => void) => {
+  const handleAddLineItem = (targetLines: LineItem[] | null | undefined, setLines: (l: LineItem[]) => void) => {
     const newItem: LineItem = { description: "New Service", amount: 0, quantity: 1, type: "service" };
-    setLines([...targetLines, newItem]);
+    setLines([...(targetLines ?? []), newItem]);
   };
 
-  const handleUpdateLineItem = (index: number, field: keyof LineItem, value: any, targetLines: LineItem[], setLines: (l: LineItem[]) => void) => {
-    const updated = [...targetLines];
+  const handleUpdateLineItem = (index: number, field: keyof LineItem, value: string | number, targetLines: LineItem[] | null | undefined, setLines: (l: LineItem[]) => void) => {
+    const updated = [...(targetLines ?? [])];
+    if (!updated[index]) return;
     updated[index] = { ...updated[index], [field]: value };
     setLines(updated);
   };
 
-  const handleRemoveLineItem = (index: number, targetLines: LineItem[], setLines: (l: LineItem[]) => void) => {
-    setLines(targetLines.filter((_, i) => i !== index));
+  const handleRemoveLineItem = (index: number, targetLines: LineItem[] | null | undefined, setLines: (l: LineItem[]) => void) => {
+    setLines((targetLines ?? []).filter((_, i) => i !== index));
   };
 
-  // Calculate total from lines
-  const calculateTotal = (lines: LineItem[]) => lines.reduce((sum, item) => sum + (item.amount * item.quantity), 0);
+  // Calculate the line-item subtotal from lines (defensive: lines may be missing).
+  const calculateTotal = (lines: LineItem[] | null | undefined) =>
+    (lines ?? []).reduce((sum, item) => sum + ((item.amount ?? 0) * (item.quantity ?? 1)), 0);
 
   // ---- Handlers ----
 
   const handleWizardSubmit = async () => {
     const finalAmount = calculateTotal(formData.line_items);
+    const finalTax = calculateTax(finalAmount);
     await createInvoice.mutateAsync({
       guest_id: formData.guest_id || undefined,
       booking_id: formData.booking_id || undefined,
       amount: finalAmount,
+      tax: finalTax,
       amount_paid: 0, // Manual invoice creation usually starts with 0 paid unless specified otherwise
-      line_items: formData.line_items,
+      line_items: formData.line_items ?? [],
       status: "pending"
     });
     setIsDialogOpen(false);
@@ -357,9 +386,19 @@ export default function Billing() {
                       </Table>
                     </div>
 
+                    <div className="space-y-1 text-sm text-muted-foreground">
+                      <div className="flex justify-between">
+                        <span>Subtotal</span>
+                        <span>{formatAndConvert(calculateTotal(formData.line_items), currency)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Tax (10%)</span>
+                        <span>{formatAndConvert(calculateTax(calculateTotal(formData.line_items)), currency)}</span>
+                      </div>
+                    </div>
                     <div className="flex justify-between items-center bg-muted/30 p-3 rounded-lg">
                       <span className="font-semibold">Total Amount</span>
-                      <span className="text-xl font-bold">{formatAndConvert(calculateTotal(formData.line_items), currency)}</span>
+                      <span className="text-xl font-bold">{formatAndConvert(calculateTotal(formData.line_items) + calculateTax(calculateTotal(formData.line_items)), currency)}</span>
                     </div>
 
                     <DialogFooter className="flex justify-between w-full sm:justify-between">
@@ -383,7 +422,7 @@ export default function Billing() {
           <Card>
             <CardContent className="p-4 flex flex-col justify-center">
               <span className="text-muted-foreground text-sm">
-                {role === 'manager' ? "Today's Collected" : "Total Collected"}
+                Total Collected
               </span>
               <span className="text-2xl font-bold text-green-600">{formatAndConvert(totalRevenue, currency)}</span>
             </CardContent>
@@ -391,7 +430,7 @@ export default function Billing() {
           <Card>
             <CardContent className="p-4 flex flex-col justify-center">
               <span className="text-muted-foreground text-sm">
-                {role === 'manager' ? "Today's Pending" : "Total Pending"}
+                Total Pending
               </span>
               <span className="text-2xl font-bold text-orange-600">{formatAndConvert(pendingRevenue, currency)}</span>
             </CardContent>
@@ -422,7 +461,7 @@ export default function Billing() {
                   >
                     <TableCell className="font-mono">{inv.invoice_number}</TableCell>
                     <TableCell>{inv.guest?.name || 'Unknown'}</TableCell>
-                    <TableCell className="text-right">{formatAndConvert(inv.amount, currency)}</TableCell>
+                    <TableCell className="text-right">{formatAndConvert(inv.total, currency)}</TableCell>
 
                     {/* New: Showing Amount Paid */}
                     <TableCell className="text-center text-muted-foreground">
@@ -464,11 +503,15 @@ export default function Billing() {
                   <Button size="sm" variant="outline" onClick={() => setSelectedInvoice(null)}>Cancel</Button>
 
                   <Button size="sm" onClick={() => {
+                    const subtotal = calculateTotal(selectedInvoice.line_items);
+                    const tax = calculateTax(subtotal);
                     updateInvoice.mutate({
                       id: selectedInvoice.id,
                       updates: {
-                        line_items: selectedInvoice.line_items,
-                        amount: calculateTotal(selectedInvoice.line_items)
+                        line_items: selectedInvoice.line_items ?? [],
+                        amount: subtotal,
+                        tax,
+                        total: subtotal + tax
                       }
                     });
                     setSelectedInvoice(null);
@@ -491,8 +534,8 @@ export default function Billing() {
                         id: selectedInvoice.id,
                         updates: {
                           status: 'paid',
-                          amount_paid: selectedInvoice.amount,
-                          paid_at: new Date().toISOString()
+                          amount_paid: selectedInvoice.total,
+                          paid_date: new Date().toISOString()
                         }
                       });
                       setSelectedInvoice(null);
@@ -555,8 +598,16 @@ export default function Billing() {
 
                 <div className="flex flex-col gap-2 pt-4 border-t">
                   <div className="flex justify-between items-center text-muted-foreground">
-                    <span>Total Bill</span>
+                    <span>Subtotal</span>
                     <span>{formatAndConvert(calculateTotal(selectedInvoice.line_items), currency)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-muted-foreground">
+                    <span>Tax (10%)</span>
+                    <span>{formatAndConvert(calculateTax(calculateTotal(selectedInvoice.line_items)), currency)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-muted-foreground">
+                    <span>Total Bill</span>
+                    <span>{formatAndConvert(calculateTotal(selectedInvoice.line_items) + calculateTax(calculateTotal(selectedInvoice.line_items)), currency)}</span>
                   </div>
                   {selectedInvoice.amount_paid > 0 && (
                     <div className="flex justify-between items-center text-green-600">
@@ -567,7 +618,7 @@ export default function Billing() {
                   <div className="flex justify-between items-center pt-2 border-t mt-2">
                     <span className="font-bold text-lg">Remaining Due</span>
                     <span className="font-bold text-2xl">
-                      {formatAndConvert(calculateTotal(selectedInvoice.line_items) - (selectedInvoice.amount_paid || 0), currency)}
+                      {formatAndConvert(Math.max(0, calculateTotal(selectedInvoice.line_items) + calculateTax(calculateTotal(selectedInvoice.line_items)) - (selectedInvoice.amount_paid ?? 0)), currency)}
                     </span>
                   </div>
                 </div>
@@ -589,9 +640,8 @@ export default function Billing() {
                     <p className="text-sm text-gray-500 mt-1"># {selectedInvoice.invoice_number}</p>
                   </div>
                   <div className="text-right">
-                    <h3 className="font-bold">Grand Sky Resort</h3>
-                    <p className="text-sm text-gray-500">123 Hospitality Way, Maldives</p>
-                    <p className="text-sm text-gray-500">contact@grandsky.com</p>
+                    <h3 className="font-bold">{hotel?.name ?? "Grand Plaza Hotel"}</h3>
+                    <p className="text-sm text-gray-500">{hotel?.location ?? "Dubai, UAE"}</p>
                   </div>
                 </div>
 
@@ -636,6 +686,14 @@ export default function Billing() {
                       <span>Subtotal</span>
                       <span>{formatAndConvert(calculateTotal(selectedInvoice.line_items), currency)}</span>
                     </div>
+                    <div className="flex justify-between text-gray-500">
+                      <span>Tax (10%)</span>
+                      <span>{formatAndConvert(calculateTax(calculateTotal(selectedInvoice.line_items)), currency)}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-500">
+                      <span>Total</span>
+                      <span>{formatAndConvert(calculateTotal(selectedInvoice.line_items) + calculateTax(calculateTotal(selectedInvoice.line_items)), currency)}</span>
+                    </div>
                     {selectedInvoice.amount_paid > 0 && (
                       <div className="flex justify-between text-green-600 font-medium">
                         <span>Paid Amount</span>
@@ -645,20 +703,20 @@ export default function Billing() {
                     <div className="flex justify-between items-center pt-3 border-t-2 border-gray-200">
                       <span className="font-bold text-lg text-gray-900">Total Due</span>
                       <span className="font-bold text-2xl text-primary">
-                        {formatAndConvert(calculateTotal(selectedInvoice.line_items) - (selectedInvoice.amount_paid || 0), currency)}
+                        {formatAndConvert(Math.max(0, calculateTotal(selectedInvoice.line_items) + calculateTax(calculateTotal(selectedInvoice.line_items)) - (selectedInvoice.amount_paid ?? 0)), currency)}
                       </span>
                     </div>
                   </div>
                 </div>
 
                 <div className="mt-12 text-center text-xs text-gray-400 italic">
-                  Thank you for choosing Grand Sky Resort. Please keep this invoice for your records.
+                  Thank you for choosing {hotel?.name ?? "Grand Plaza Hotel"}. Please keep this invoice for your records.
                 </div>
               </div>
             )}
             <DialogFooter className="print:hidden mt-6">
               <Button variant="outline" onClick={() => setIsPreviewOpen(false)}>Close Preview</Button>
-              <Button variant="outline" className="gap-2" onClick={() => handleEmail(selectedInvoice)} disabled={isEmailing}>
+              <Button variant="outline" className="gap-2" onClick={() => { if (selectedInvoice) handleEmail(selectedInvoice); }} disabled={isEmailing}>
                 {isEmailing ? <Loader2 className="animate-spin h-4 w-4" /> : <Mail className="h-4 w-4" />}
                 Send to Guest Email
               </Button>

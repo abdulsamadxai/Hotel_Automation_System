@@ -1,23 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { mockStore } from "@/lib/mockStore";
+import { mockStore, type GuestCreateInput } from "@/lib/mockStore";
+import type { Guest as CanonicalGuest, GuestTag } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 
-export type GuestTag = "vip" | "regular" | "blocked";
+export type { GuestTag } from "@/lib/types";
 
-export interface Guest {
-  id: string;
-  name: string;
-  email: string | null;
-  phone: string | null;
-  nationality?: string | null;
-  id_number?: string | null;
-  notes: string | null;
-  tags: GuestTag[];
-  total_stays: number;
-  total_spent: number;
-  last_stay_at?: string | null;
-  created_at: string;
+export type Guest = CanonicalGuest;
+
+function toErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "An unknown error occurred";
 }
 
 export function useGuests() {
@@ -38,15 +30,15 @@ export function useCreateGuest() {
   const { hotelId } = useAuth();
 
   return useMutation({
-    mutationFn: async (guest: Omit<Guest, "id" | "created_at" | "updated_at" | "total_stays" | "total_spent" | "last_stay_at">) => {
+    mutationFn: async (guest: GuestCreateInput) => {
       return await mockStore.guests.create(guest, hotelId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["guests"] });
       toast({ title: "Guest created successfully" });
     },
-    onError: (error: any) => {
-      toast({ title: "Error creating guest", description: error.message, variant: "destructive" });
+    onError: (error: unknown) => {
+      toast({ title: "Error creating guest", description: toErrorMessage(error), variant: "destructive" });
     },
   });
 }
@@ -62,8 +54,8 @@ export function useUpdateGuest() {
       queryClient.invalidateQueries({ queryKey: ["guests"] });
       toast({ title: "Guest updated successfully" });
     },
-    onError: (error: any) => {
-      toast({ title: "Error updating guest", description: error.message, variant: "destructive" });
+    onError: (error: unknown) => {
+      toast({ title: "Error updating guest", description: toErrorMessage(error), variant: "destructive" });
     },
   });
 }
@@ -79,8 +71,8 @@ export function useDeleteGuest() {
       queryClient.invalidateQueries({ queryKey: ["guests"] });
       toast({ title: "Guest deleted successfully" });
     },
-    onError: (error: any) => {
-      toast({ title: "Error deleting guest", description: error.message, variant: "destructive" });
+    onError: (error: unknown) => {
+      toast({ title: "Error deleting guest", description: toErrorMessage(error), variant: "destructive" });
     },
   });
 }

@@ -36,10 +36,6 @@ import { useExpenses, useCreateExpense, useDeleteExpense } from "@/hooks/useExpe
 
 export default function Expenses() {
     const { hotelId, user, role } = useAuth();
-
-    if (role !== 'owner' && role !== 'super_admin') {
-        return <Navigate to="/" replace />;
-    }
     const { currency } = useCurrency();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
@@ -54,6 +50,11 @@ export default function Expenses() {
     const { data: expenses = [], isLoading } = useExpenses();
     const createExpense = useCreateExpense();
     const deleteExpense = useDeleteExpense();
+
+    // All hooks must run before any early return (rules of hooks).
+    if (role !== 'owner' && role !== 'super_admin') {
+        return <Navigate to="/" replace />;
+    }
 
     const handleCreateExpense = async () => {
         await createExpense.mutateAsync({

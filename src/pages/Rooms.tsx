@@ -40,7 +40,7 @@ export default function Rooms() {
     type: "standard" as RoomType,
     floor: 1,
     capacity: 2,
-    rate: 99,
+    price_per_night: 99,
   });
 
   const statusCounts = rooms.reduce((acc, room) => {
@@ -66,11 +66,11 @@ export default function Rooms() {
         type: room.type,
         floor: room.floor,
         capacity: room.capacity,
-        rate: room.rate,
+        price_per_night: room.price_per_night,
       });
     } else {
       setEditingRoom(null);
-      setFormData({ number: "", type: "standard", floor: 1, capacity: 2, rate: 99 });
+      setFormData({ number: "", type: "standard", floor: 1, capacity: 2, price_per_night: 99 });
     }
     setIsDialogOpen(true);
   };
@@ -88,13 +88,13 @@ export default function Rooms() {
         floor: formData.floor,
         status: "available",
         capacity: formData.capacity,
-        rate: formData.rate,
+        price_per_night: formData.price_per_night,
         amenities: [],
       });
     }
     setIsDialogOpen(false);
     setEditingRoom(null);
-    setFormData({ number: "", type: "standard", floor: 1, capacity: 2, rate: 99 });
+    setFormData({ number: "", type: "standard", floor: 1, capacity: 2, price_per_night: 99 });
   };
 
   const handleStatusChange = async (roomId: string, newStatus: RoomStatus) => {
@@ -181,11 +181,11 @@ export default function Rooms() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Rate per night</Label>
+                  <Label>Price per night</Label>
                   <Input
                     type="number"
-                    value={formData.rate}
-                    onChange={(e) => setFormData({ ...formData, rate: parseFloat(e.target.value) })}
+                    value={formData.price_per_night}
+                    onChange={(e) => setFormData({ ...formData, price_per_night: parseFloat(e.target.value) })}
                   />
                 </div>
               </div>
@@ -284,7 +284,7 @@ export default function Rooms() {
                   </div>
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <DollarSign className="h-4 w-4" />
-                    <span>{formatAndConvert(room.rate, currency)}/night</span>
+                    <span>{formatAndConvert(room.price_per_night, currency)}/night</span>
                   </div>
                 </div>
 

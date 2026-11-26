@@ -22,18 +22,23 @@ import {
 } from "@/components/ui/select";
 import { Plus, Clock, User, Users, Loader2, Trash2, Save } from "lucide-react";
 import { useStaff, useCreateStaff, useUpdateStaff, useUpdateStaffStatus, useDeleteStaff, StaffRole, StaffStatus, type StaffMember } from "@/hooks/useStaff";
+import { useUpdatePassword } from "@/hooks/useAuth";
 import { useHousekeepingTasks } from "@/hooks/useHousekeeping";
 import { format } from "date-fns";
 
-const roleColors: Record<StaffRole, string> = {
+const roleColors: Record<StaffRole | "super_admin", string> = {
   housekeeping: "bg-status-pending/15 text-status-pending",
   manager: "bg-primary/15 text-primary",
+  owner: "bg-status-warning/15 text-status-warning",
+  staff: "bg-status-info/15 text-status-info",
+  super_admin: "bg-status-error/15 text-status-error",
 };
 
 const statusColors: Record<StaffStatus, string> = {
   on_duty: "bg-status-success/15 text-status-success",
   off_duty: "bg-muted text-muted-foreground",
   break: "bg-status-warning/15 text-status-warning",
+  active: "bg-status-info/15 text-status-info",
 };
 
 export default function Staff() {
@@ -43,11 +48,15 @@ export default function Staff() {
   const updateStaff = useUpdateStaff();
   const updateStatus = useUpdateStaffStatus();
   const deleteStaff = useDeleteStaff();
+  const updatePassword = useUpdatePassword();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
+  // No password field on create: useCreateStaff creates NO login account.
+  // On edit, `password` is only shown when the member has a login user
+  // (`user_id`) and, when set, updates that login via auth.updatePassword.
   const [formData, setFormData] = useState({
-    name: "",
+    full_name: "",
     email: "",
     password: "",
     phone: "",
@@ -57,13 +66,13 @@ export default function Staff() {
 
   const onDutyCount = staff.filter((s) => s.status === "on_duty").length;
   const pendingTasks = tasks.filter((t) => t.status === "pending").length;
-  const overdueTasks = tasks.filter((t) => t.status === "overdue").length;
+  const overdueTasks = tasks.filter((t) => t.is_overdue).length;
 
   const handleOpenDialog = (member?: StaffMember) => {
     if (member) {
       setEditingStaff(member);
       setFormData({
-        name: member.name,
+        full_name: member.full_name,
         email: member.email || "",
         password: "", // Don't show existing password
         phone: member.phone || "",
@@ -72,39 +81,37 @@ export default function Staff() {
       });
     } else {
       setEditingStaff(null);
-      setFormData({ name: "", email: "", password: "", phone: "", role: "housekeeping", shift: "morning" });
+      setFormData({ full_name: "", email: "", password: "", phone: "", role: "housekeeping", shift: "morning" });
     }
     setIsDialogOpen(true);
   };
 
   const handleSaveStaff = async () => {
     if (editingStaff) {
-      const updates: any = {
-        name: formData.name,
-        email: formData.email || undefined,
-        phone: formData.phone || undefined,
-        role: formData.role,
-        shift: formData.shift,
-      };
-      if (formData.password) updates.password = formData.password;
-
       await updateStaff.mutateAsync({
         id: editingStaff.id,
-        ...updates
+        full_name: formData.full_name,
+        email: formData.email || null,
+        phone: formData.phone || null,
+        role: formData.role,
+        shift: formData.shift,
       });
+      // Password changes apply to the LOGIN user, not the staff record.
+      if (formData.password && editingStaff.user_id) {
+        await updatePassword.mutateAsync({ userId: editingStaff.user_id, newPassword: formData.password });
+      }
     } else {
       await createStaff.mutateAsync({
-        name: formData.name,
-        email: formData.email || undefined,
-        password: formData.password,
-        phone: formData.phone || undefined,
+        full_name: formData.full_name,
+        email: formData.email || null,
+        phone: formData.phone || null,
         role: formData.role,
         shift: formData.shift,
       });
     }
     setIsDialogOpen(false);
     setEditingStaff(null);
-    setFormData({ name: "", email: "", password: "", phone: "", role: "housekeeping", shift: "morning" });
+    setFormData({ full_name: "", email: "", password: "", phone: "", role: "housekeeping", shift: "morning" });
   };
 
   const handleStatusChange = async (staffId: string, status: StaffStatus) => {
@@ -117,7 +124,7 @@ export default function Staff() {
 
   // Calculate task counts per staff member
   const getStaffTaskCounts = (staffId: string) => {
-    const assignedTasks = tasks.filter(t => t.assignee_id === staffId);
+    const assignedTasks = tasks.filter(t => t.assigned_to === staffId);
     const completed = assignedTasks.filter(t => t.status === "completed").length;
     return { total: assignedTasks.length, completed };
   };
@@ -155,15 +162,15 @@ export default function Staff() {
                   <DialogDescription>
                     {editingStaff
                       ? "Update the details and permissions for this staff member."
-                      : "Register a new staff member. Their login credentials will be created using the provided email and your unique hotel code."}
+                      : "Register a new staff member. This creates a staff record only — no login account is created here; login accounts are created via sign-up."}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
                     <Label>Name *</Label>
                     <Input
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      value={formData.full_name}
+                      onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                       placeholder="Full name"
                     />
                   </div>
@@ -178,16 +185,26 @@ export default function Staff() {
                         required
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label>{editingStaff ? "New Password (optional)" : "Password *"}</Label>
-                      <Input
-                        type="password"
-                        value={formData.password}
-                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                        placeholder="••••••••"
-                        required={!editingStaff}
-                      />
-                    </div>
+                    {editingStaff && editingStaff.user_id ? (
+                      <div className="space-y-2">
+                        <Label>New Login Password (optional)</Label>
+                        <Input
+                          type="password"
+                          value={formData.password}
+                          onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                          placeholder="••••••••"
+                        />
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <Label>Login</Label>
+                        <p className="text-sm text-muted-foreground pt-2">
+                          {editingStaff
+                            ? "No login account linked to this member."
+                            : "No login account is created with this form."}
+                        </p>
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label>Phone</Label>
@@ -210,6 +227,8 @@ export default function Staff() {
                         <SelectContent>
                           <SelectItem value="housekeeping">Housekeeping</SelectItem>
                           <SelectItem value="manager">Manager</SelectItem>
+                          <SelectItem value="owner">Owner</SelectItem>
+                          <SelectItem value="staff">Staff</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -232,7 +251,7 @@ export default function Staff() {
                   </div>
                   <Button
                     onClick={handleSaveStaff}
-                    disabled={createStaff.isPending || updateStaff.isPending || !formData.name}
+                    disabled={createStaff.isPending || updateStaff.isPending || !formData.full_name}
                     className="w-full"
                   >
                     {createStaff.isPending || updateStaff.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingStaff ? "Update Staff" : "Add Staff Member")}
@@ -291,12 +310,12 @@ export default function Staff() {
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-3">
                           <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium">
-                            {member.name
-                              ? member.name.split(" ").filter(Boolean).map((n) => n[0]).join("").toUpperCase().slice(0, 2)
+                            {member.full_name
+                              ? member.full_name.split(" ").filter(Boolean).map((n) => n[0]).join("").toUpperCase().slice(0, 2)
                               : "U"}
                           </div>
                           <div>
-                            <p className="font-medium">{member.name}</p>
+                            <p className="font-medium">{member.full_name}</p>
                             <div className="flex items-center gap-2 mt-1">
                               <Badge variant="outline" className={roleColors[member.role]}>
                                 {member.role}
@@ -314,6 +333,7 @@ export default function Staff() {
                                   <SelectItem value="on_duty">On Duty</SelectItem>
                                   <SelectItem value="off_duty">Off Duty</SelectItem>
                                   <SelectItem value="break">Break</SelectItem>
+                                  <SelectItem value="active">Active</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
@@ -374,7 +394,7 @@ export default function Staff() {
                 {tasks.filter(t => t.status !== "completed").map((task) => (
                   <div
                     key={task.id}
-                    className={`p-4 hover:bg-muted/30 transition-colors ${task.status === "overdue" ? "bg-status-error/5" : ""
+                    className={`p-4 hover:bg-muted/30 transition-colors ${task.is_overdue ? "bg-status-error/5" : ""
                       }`}
                   >
                     <div className="flex items-start justify-between">
@@ -382,7 +402,7 @@ export default function Staff() {
                         <p className="font-medium">Room {task.room?.number || "N/A"} - {(task.type || 'maintenance').replace("_", " ")}</p>
                         <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
                           <User className="h-3 w-3" />
-                          <span>{task.assignee?.name || "Unassigned"}</span>
+                          <span>{task.assignee?.full_name || "Unassigned"}</span>
                           <span>•</span>
                           <Clock className="h-3 w-3" />
                           <span>{(() => {
@@ -396,13 +416,15 @@ export default function Staff() {
                       </div>
                       <StatusBadge
                         status={
-                          task.status === "in_progress"
-                            ? "info"
-                            : task.status === "overdue"
-                              ? "error"
-                              : "warning"
+                          task.is_overdue
+                            ? "overdue"
+                            : task.status === "in_progress"
+                              ? "in_progress"
+                              : task.status === "completed"
+                                ? "completed"
+                                : "pending"
                         }
-                        label={(task?.status || 'pending').replace("_", " ")}
+                        label={(task.is_overdue ? "overdue" : task.status).replace("_", " ")}
                         size="sm"
                       />
                     </div>

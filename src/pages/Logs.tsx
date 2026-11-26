@@ -3,25 +3,37 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useActivity, useDeleteActivity } from "@/hooks/useActivity";
-import { Search, RefreshCw, Zap, CalendarCheck, Bed, ClipboardList, AlertCircle, DollarSign, Trash2, Loader2 } from "lucide-react";
+import { Search, RefreshCw, Zap, CalendarCheck, Bed, ClipboardList, AlertCircle, DollarSign, Trash2, Loader2, User, FileText } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useState } from "react";
 
-const iconMap: any = {
+/** Icons keyed by the canonical `entity_type` (with `action` keywords as fallback). */
+const iconMap: Record<string, LucideIcon> = {
   booking: CalendarCheck,
   room: Bed,
   task: ClipboardList,
   automation: Zap,
   alert: AlertCircle,
   payment: DollarSign,
+  invoice: DollarSign,
+  guest: User,
+  user: User,
+  staff: User,
+  message: FileText,
 };
 
-const colorMap: any = {
+const colorMap: Record<string, string> = {
   booking: "bg-status-info/10 text-status-info",
   room: "bg-status-warning/10 text-status-warning",
   task: "bg-status-pending/10 text-status-pending",
   automation: "bg-primary/10 text-primary",
   alert: "bg-status-error/10 text-status-error",
   payment: "bg-status-success/10 text-status-success",
+  invoice: "bg-status-success/10 text-status-success",
+  guest: "bg-primary/10 text-primary",
+  user: "bg-primary/10 text-primary",
+  staff: "bg-primary/10 text-primary",
+  message: "bg-muted text-muted-foreground",
 };
 
 export default function Logs() {
@@ -29,11 +41,14 @@ export default function Logs() {
   const deleteActivity = useDeleteActivity();
   const [searchTerm, setSearchTerm] = useState("");
 
-  const filteredLogs = logs.filter(log =>
-    (log.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (log.description || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (log.event_name || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredLogs = logs.filter(log => {
+    const term = searchTerm.toLowerCase();
+    return (
+      log.action.toLowerCase().includes(term) ||
+      log.details.toLowerCase().includes(term) ||
+      log.entity_type.toLowerCase().includes(term)
+    );
+  });
 
   const handleDelete = async (id: string) => {
     if (confirm("Are you sure you want to delete this log entry?")) {
@@ -92,7 +107,7 @@ export default function Logs() {
               </div>
             ) : (
               filteredLogs.map((log) => {
-                const Icon = iconMap[log.event_type] || Zap;
+                const Icon = iconMap[log.entity_type] || Zap;
                 return (
                   <div
                     key={log.id}
@@ -100,7 +115,7 @@ export default function Logs() {
                   >
                     <div className="flex items-start gap-4">
                       <div
-                        className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${colorMap[log.event_type] || "bg-muted"}`}
+                        className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${colorMap[log.entity_type] || "bg-muted"}`}
                       >
                         <Icon className="h-5 w-5" />
                       </div>
@@ -108,20 +123,22 @@ export default function Logs() {
                         <div className="flex items-start justify-between gap-2">
                           <div>
                             <p className="font-mono text-sm font-medium">
-                              {log.title}
+                              {log.action}
                             </p>
                             <div className="flex items-center gap-2 mt-1">
                               <Badge
                                 variant="outline"
                                 className="bg-muted text-muted-foreground"
                               >
-                                {log.source}
+                                {log.entity_type}
                               </Badge>
-                              <span className="text-xs text-muted-foreground">
-                                {log.event_name}
-                              </span>
+                              {log.user_name && (
+                                <span className="text-xs text-muted-foreground">
+                                  {log.user_name}
+                                </span>
+                              )}
                             </div>
-                            <p className="text-sm text-muted-foreground mt-1">{log.description}</p>
+                            <p className="text-sm text-muted-foreground mt-1">{log.details}</p>
                           </div>
                           <span className="text-xs text-muted-foreground whitespace-nowrap">
                             {new Date(log.created_at).toLocaleString()}
@@ -131,6 +148,7 @@ export default function Logs() {
                       <Button
                         size="icon"
                         variant="ghost"
+                        aria-label="Delete log entry"
                         className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive/90"
                         onClick={() => handleDelete(log.id)}
                       >

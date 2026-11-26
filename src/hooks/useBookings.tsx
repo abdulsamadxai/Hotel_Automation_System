@@ -1,30 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { mockStore } from "@/lib/mockStore";
+import { mockStore, type BookingCreateInput, type BookingWithJoins } from "@/lib/mockStore";
+import type { BookingStatus } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 
-export type BookingStatus = "pending" | "confirmed" | "checked_in" | "checked_out" | "cancelled";
+export type { BookingStatus } from "@/lib/types";
 
-export interface Booking {
-  id: string;
-  booking_number: string;
-  guest_id: string | null;
-  room_id: string | null;
-  guest_type: "national" | "international";
-  check_in: string;
-  check_out: string;
-  status: BookingStatus;
-  nights: number;
-  total_amount: number;
-  notes: string | null;
-  created_by: string | null;
-  created_at: string;
-  updated_at: string;
-  // Joined fields
-  guest?: { id: string; name: string; email: string | null; tags: string[] } | null;
-  room?: { id: string; number: string; type: string } | null;
-  payment_status?: "pending" | "partially_paid" | "paid" | "refunded";
-  deposit_amount?: number;
+/** A booking with its joined guest and room. */
+export type Booking = BookingWithJoins;
+
+function toErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "An unknown error occurred";
 }
 
 export function useBookings() {
@@ -45,18 +31,7 @@ export function useCreateBooking() {
   const { hotelId } = useAuth();
 
   return useMutation({
-    mutationFn: async (booking: {
-      guest_id: string;
-      room_id: string;
-      guest_type: "national" | "international";
-      check_in: string;
-      check_out: string;
-      total_amount: number;
-      notes?: string;
-      status?: BookingStatus;
-      payment_status?: string;
-      deposit_amount?: number;
-    }) => {
+    mutationFn: async (booking: BookingCreateInput) => {
       return await mockStore.bookings.create(booking, hotelId);
     },
     onSuccess: () => {
@@ -64,8 +39,8 @@ export function useCreateBooking() {
       queryClient.invalidateQueries({ queryKey: ["activity"] });
       toast({ title: "Booking created successfully" });
     },
-    onError: (error: any) => {
-      toast({ title: "Error creating booking", description: error.message, variant: "destructive" });
+    onError: (error: unknown) => {
+      toast({ title: "Error creating booking", description: toErrorMessage(error), variant: "destructive" });
     },
   });
 }
@@ -81,6 +56,8 @@ export function useUpdateBookingStatus() {
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
       queryClient.invalidateQueries({ queryKey: ["rooms"] });
       queryClient.invalidateQueries({ queryKey: ["housekeeping"] });
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["guests"] });
       queryClient.invalidateQueries({ queryKey: ["activity"] });
 
       const statusMessages: Record<BookingStatus, string> = {
@@ -93,8 +70,8 @@ export function useUpdateBookingStatus() {
 
       toast({ title: statusMessages[data.status as BookingStatus] });
     },
-    onError: (error: any) => {
-      toast({ title: "Error updating booking", description: error.message, variant: "destructive" });
+    onError: (error: unknown) => {
+      toast({ title: "Error updating booking", description: toErrorMessage(error), variant: "destructive" });
     },
   });
 }
@@ -103,7 +80,7 @@ export function useUpdateBooking() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, ...updates }: { id: string;[key: string]: any }) => {
+    mutationFn: async ({ id, ...updates }: Partial<Omit<Booking, "id" | "hotel_id" | "booking_number">> & { id: string }) => {
       return await mockStore.bookings.update(id, updates);
     },
     onSuccess: () => {
@@ -112,8 +89,8 @@ export function useUpdateBooking() {
       queryClient.invalidateQueries({ queryKey: ["activity"] });
       toast({ title: "Booking updated successfully" });
     },
-    onError: (error: any) => {
-      toast({ title: "Error updating booking", description: error.message, variant: "destructive" });
+    onError: (error: unknown) => {
+      toast({ title: "Error updating booking", description: toErrorMessage(error), variant: "destructive" });
     },
   });
 }
@@ -129,8 +106,8 @@ export function useDeleteBooking() {
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
       toast({ title: "Booking deleted successfully" });
     },
-    onError: (error: any) => {
-      toast({ title: "Error deleting booking", description: error.message, variant: "destructive" });
+    onError: (error: unknown) => {
+      toast({ title: "Error deleting booking", description: toErrorMessage(error), variant: "destructive" });
     },
   });
 }

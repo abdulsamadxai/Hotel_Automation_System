@@ -1,6 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { mockStore, type InvoiceCreateInputPublic, type InvoiceWithJoins } from "@/lib/mockStore";
-import type { InvoiceStatus, LineItem } from "@/lib/types";
+import { api, hotelParams } from "@/lib/api";
+import type {
+  InvoiceCreateInput,
+  InvoiceStatus,
+  InvoiceUpdateInput,
+  InvoiceWithJoins,
+  LineItem,
+} from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -33,7 +39,7 @@ export function useInvoices() {
     queryKey: ["invoices", hotelId],
     queryFn: async () => {
       if (!hotelId) return [];
-      return await mockStore.invoices.getAll(hotelId);
+      return await api.get<Invoice[]>("/api/invoices", hotelParams(hotelId));
     },
     enabled: !!hotelId,
   });
@@ -41,12 +47,12 @@ export function useInvoices() {
 
 export function useCreateInvoice() {
   const queryClient = useQueryClient();
-  const { hotelId } = useAuth();
 
   return useMutation({
-    mutationFn: async (invoice: InvoiceCreateInputPublic) => {
-      if (!hotelId) throw new Error("Hotel ID is required to create an invoice");
-      return await mockStore.invoices.create(invoice, hotelId);
+    mutationFn: async (invoice: InvoiceCreateInput) => {
+      // The server computes tax (hotel tax_rate, unless overridden) and
+      // the authoritative total = amount + tax.
+      return await api.post<Invoice>("/api/invoices", invoice);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
@@ -58,25 +64,37 @@ export function useCreateInvoice() {
   });
 }
 
+/**
+ * Edit an invoice's line items / amounts (Billing Save button) or mark it
+ * paid. Paying goes through POST /:id/pay with the remaining balance —
+ * never by setting `status: 'paid'` directly, so the server stays the
+ * authority on `amount_paid` vs `total`.
+ */
 export function useUpdateInvoice() {
   const queryClient = useQueryClient();
-  const { hotelId } = useAuth();
 
   return useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: InvoiceUpdate }) => {
-      // Compare the authoritative total against amount_paid (not amount).
-      if (updates.status === "paid" && hotelId) {
-        const invoices = await mockStore.invoices.getAll(hotelId);
-        const current = invoices.find(inv => inv.id === id);
-        const totalAmount = updates.total !== undefined ? updates.total : current?.total ?? 0;
-        const paidAmount = updates.amount_paid !== undefined ? updates.amount_paid : current?.amount_paid ?? 0;
-
-        if (totalAmount > paidAmount) {
-          throw new Error("Cannot set status to 'Paid' while balance is greater than 0.");
-        }
+      if (updates.status === "paid") {
+        const current = await api.get<Invoice>(`/api/invoices/${id}`);
+        const remaining =
+          Math.round((current.total - current.amount_paid) * 100) / 100;
+        if (remaining <= 0) return current;
+        return await api.post<Invoice>(`/api/invoices/${id}/pay`, {
+          amount: remaining,
+          payment_method: updates.payment_method,
+        });
       }
 
-      return await mockStore.invoices.update(id, updates);
+      // Line-item / amount edits: the server recomputes total = amount + tax.
+      const patch: InvoiceUpdateInput = {};
+      if (updates.amount !== undefined) patch.amount = updates.amount;
+      if (updates.tax !== undefined) patch.tax = updates.tax;
+      if (updates.line_items !== undefined) patch.line_items = updates.line_items;
+      if (updates.due_date !== undefined) patch.due_date = updates.due_date;
+      if (updates.payment_method !== undefined) patch.payment_method = updates.payment_method;
+      if (updates.notes !== undefined) patch.notes = updates.notes;
+      return await api.patch<Invoice>(`/api/invoices/${id}`, patch);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
@@ -88,12 +106,46 @@ export function useUpdateInvoice() {
   });
 }
 
+export function usePayInvoice() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, amount, payment_method }: { id: string; amount: number; payment_method?: string }) => {
+      return await api.post<Invoice>(`/api/invoices/${id}/pay`, { amount, payment_method });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      toast({ title: "Payment recorded" });
+    },
+    onError: (error: unknown) => {
+      toast({ title: "Error recording payment", description: toErrorMessage(error), variant: "destructive" });
+    },
+  });
+}
+
+export function useCancelInvoice() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      return await api.post<Invoice>(`/api/invoices/${id}/cancel`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      toast({ title: "Invoice cancelled" });
+    },
+    onError: (error: unknown) => {
+      toast({ title: "Error cancelling invoice", description: toErrorMessage(error), variant: "destructive" });
+    },
+  });
+}
+
 export function useDeleteInvoice() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (id: string) => {
-      return await mockStore.invoices.delete(id);
+      return await api.del(`/api/invoices/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
@@ -101,60 +153,6 @@ export function useDeleteInvoice() {
     },
     onError: (error: unknown) => {
       toast({ title: "Error deleting invoice", description: toErrorMessage(error), variant: "destructive" });
-    },
-  });
-}
-
-export function useAddService() {
-  const queryClient = useQueryClient();
-  // useAuth() is called at the top level of the hook — never inside mutationFn.
-  const { hotelId } = useAuth();
-
-  return useMutation({
-    mutationFn: async (service: {
-      booking_id: string;
-      invoice_id: string;
-      description: string;
-      amount: number;
-      quantity?: number;
-      type?: "food" | "laundry" | "custom";
-    }) => {
-      if (!hotelId) throw new Error("Could not determine hotel property context.");
-
-      const invoices = await mockStore.invoices.getAll(hotelId);
-      const invoice = invoices.find(inv => inv.id === service.invoice_id);
-      if (!invoice) throw new Error("Invoice not found");
-
-      const quantity = service.quantity || 1;
-      const lineAmount = service.amount * quantity;
-      const newLine: LineItem = {
-        description: service.description,
-        amount: lineAmount,
-        quantity,
-        type: "service",
-      };
-      const line_items = [...(invoice.line_items ?? []), newLine];
-      const amount = invoice.amount + lineAmount;
-      // Keep tax consistent: preserve the invoice's existing tax rate
-      // (seed data uses 10%); fall back to 10% when there is no rate yet.
-      const taxRate = invoice.amount > 0 ? invoice.tax / invoice.amount : 0.1;
-      const tax = Math.round(amount * taxRate * 100) / 100;
-      const total = amount + tax;
-
-      await mockStore.invoices.update(service.invoice_id, {
-        line_items,
-        amount,
-        tax,
-        total,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      queryClient.invalidateQueries({ queryKey: ["bookings"] });
-      toast({ title: "Service added and invoice updated" });
-    },
-    onError: (error: unknown) => {
-      toast({ title: "Error adding service", description: toErrorMessage(error), variant: "destructive" });
     },
   });
 }

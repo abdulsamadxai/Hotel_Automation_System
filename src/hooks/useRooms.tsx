@@ -1,23 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { mockStore } from "@/lib/mockStore";
+import { mockStore, type RoomCreateInput } from "@/lib/mockStore";
+import type { Room as CanonicalRoom, RoomStatus, RoomType } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 
-export type RoomStatus = "available" | "occupied" | "dirty" | "cleaning" | "maintenance";
-export type RoomType = "standard" | "deluxe" | "suite" | "penthouse";
+export type { RoomStatus, RoomType } from "@/lib/types";
 
-export interface Room {
-  id: string;
-  number: string;
-  type: RoomType;
-  floor: number;
-  status: RoomStatus;
-  capacity: number;
-  price_per_night?: number;
-  rate?: number;
-  amenities: string[];
-  created_at: string;
-  updated_at?: string;
+/** Canonical room: nightly price is `price_per_night` only (no `rate`). */
+export type Room = CanonicalRoom;
+
+function toErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "An unknown error occurred";
 }
 
 export function useRooms() {
@@ -52,15 +45,15 @@ export function useCreateRoom() {
   const { hotelId } = useAuth();
 
   return useMutation({
-    mutationFn: async (room: Omit<Room, "id" | "created_at" | "updated_at">) => {
+    mutationFn: async (room: RoomCreateInput) => {
       return await mockStore.rooms.create(room, hotelId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["rooms"] });
       toast({ title: "Room created successfully" });
     },
-    onError: (error: any) => {
-      toast({ title: "Error creating room", description: error.message, variant: "destructive" });
+    onError: (error: unknown) => {
+      toast({ title: "Error creating room", description: toErrorMessage(error), variant: "destructive" });
     },
   });
 }
@@ -76,8 +69,8 @@ export function useUpdateRoom() {
       queryClient.invalidateQueries({ queryKey: ["rooms"] });
       toast({ title: "Room updated successfully" });
     },
-    onError: (error: any) => {
-      toast({ title: "Error updating room", description: error.message, variant: "destructive" });
+    onError: (error: unknown) => {
+      toast({ title: "Error updating room", description: toErrorMessage(error), variant: "destructive" });
     },
   });
 }
@@ -93,8 +86,8 @@ export function useDeleteRoom() {
       queryClient.invalidateQueries({ queryKey: ["rooms"] });
       toast({ title: "Room deleted successfully" });
     },
-    onError: (error: any) => {
-      toast({ title: "Error deleting room", description: error.message, variant: "destructive" });
+    onError: (error: unknown) => {
+      toast({ title: "Error deleting room", description: toErrorMessage(error), variant: "destructive" });
     },
   });
 }

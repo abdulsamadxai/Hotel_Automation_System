@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import {
   Area,
   AreaChart,
@@ -11,7 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { BookingWithJoins, InvoiceWithJoins } from "@/lib/mockStore";
+import type { BookingWithJoins, InvoiceWithJoins } from "@/lib/types";
 import type { Currency } from "@/utils/currency";
 import { formatAndConvert } from "@/utils/currency";
 import { dayKey, daysEndingOn, shortDayLabel } from "./dashboardDates";
@@ -55,6 +55,13 @@ interface DashboardChartsProps {
   /** Last day of both ranges — the latest date present in the records. */
   anchorDate: Date;
   currency: Currency;
+  /**
+   * Trend arrays from GET /api/dashboard/summary. When supplied they are
+   * the data source; otherwise the trends are computed from bookings /
+   * invoices as before.
+   */
+  occupancyTrend?: Array<{ date: string; rate: number }>;
+  revenueTrend?: Array<{ date: string; amount: number }>;
 }
 
 /**
@@ -69,8 +76,20 @@ export function DashboardCharts({
   totalRooms,
   anchorDate,
   currency,
+  occupancyTrend,
+  revenueTrend,
 }: DashboardChartsProps) {
   const occupancyData = useMemo(() => {
+    if (occupancyTrend) {
+      return occupancyTrend.map((point) => {
+        const day = parseISO(point.date);
+        return {
+          day: shortDayLabel(day),
+          fullDay: format(day, "MMM d, yyyy"),
+          occupancy: point.rate,
+        };
+      });
+    }
     return daysEndingOn(anchorDate, 14).map((day) => {
       const key = dayKey(day);
       const staying = bookings.filter((b) => {
@@ -87,9 +106,19 @@ export function DashboardCharts({
         occupancy: totalRooms > 0 ? Math.round((staying / totalRooms) * 100) : 0,
       };
     });
-  }, [bookings, totalRooms, anchorDate]);
+  }, [bookings, totalRooms, anchorDate, occupancyTrend]);
 
   const revenueData = useMemo(() => {
+    if (revenueTrend) {
+      return revenueTrend.map((point) => {
+        const day = parseISO(point.date);
+        return {
+          day: shortDayLabel(day),
+          fullDay: format(day, "MMM d, yyyy"),
+          revenue: Math.round(point.amount * 100) / 100,
+        };
+      });
+    }
     return daysEndingOn(anchorDate, 30).map((day) => {
       const key = dayKey(day);
       const revenue = invoices
@@ -101,7 +130,7 @@ export function DashboardCharts({
         revenue: Math.round(revenue * 100) / 100,
       };
     });
-  }, [invoices, anchorDate]);
+  }, [invoices, anchorDate, revenueTrend]);
 
   const rangeLabel = `ending ${format(anchorDate, "MMM d, yyyy")}`;
   const totalRevenue30d = revenueData.reduce((sum, d) => sum + d.revenue, 0);

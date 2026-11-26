@@ -39,120 +39,118 @@ import {
   Edit,
   Trash2,
   Loader2,
+  MailWarning,
 } from "lucide-react";
-import { useAutomations, useToggleAutomation, useCreateAutomation, useDeleteAutomation } from "@/hooks/useAutomations";
+import {
+  useAutomations,
+  useToggleAutomation,
+  useCreateAutomation,
+  useDeleteAutomation,
+  useUpdateAutomation,
+} from "@/hooks/useAutomations";
+import type { AutomationAction, StoreEventType, Automation } from "@/lib/types";
 import { formatDistanceToNow } from "date-fns";
 
-const triggerEvents = [
+// Canonical trigger values — they match the store event types in src/lib/types.ts.
+const triggerOptions: { value: StoreEventType; label: string }[] = [
   { value: "booking.created", label: "Booking Created" },
   { value: "booking.checked_in", label: "Guest Checked In" },
   { value: "booking.checked_out", label: "Guest Checked Out" },
   { value: "booking.cancelled", label: "Booking Cancelled" },
-  { value: "room.status_changed", label: "Room Status Changed" },
-  { value: "task.created", label: "Task Created" },
-  { value: "task.completed", label: "Task Completed" },
-  { value: "task.overdue", label: "Task Overdue" },
+  { value: "room.updated", label: "Room Updated" },
   { value: "invoice.created", label: "Invoice Created" },
-  { value: "invoice.overdue", label: "Invoice Overdue" },
+  { value: "invoice.paid", label: "Invoice Paid" },
 ];
 
-const actionTypes = [
-  { value: "create_task", label: "Create Housekeeping Task" },
-  { value: "create_alert", label: "Create Alert" },
-  { value: "send_notification", label: "Send Notification" },
-  { value: "update_room_status", label: "Update Room Status" },
-  { value: "generate_invoice", label: "Generate Invoice" },
-  { value: "escalate", label: "Escalate to Manager" },
+// Canonical action values — the only actions the rule engine executes.
+const actionOptions: { value: AutomationAction; label: string }[] = [
+  { value: "create_housekeeping_task", label: "Create Housekeeping Task" },
+  { value: "create_notification", label: "Create Notification" },
+  { value: "log_activity", label: "Log Activity" },
+  { value: "create_invoice", label: "Create Invoice" },
+  {
+    value: "send_email",
+    label: "Record Email Action (logged only — no email is sent)",
+  },
 ];
+
+function getTriggerLabel(trigger: string): string {
+  return triggerOptions.find((t) => t.value === trigger)?.label ?? trigger;
+}
+
+function getActionLabel(action: string): string {
+  return actionOptions.find((a) => a.value === action)?.label ?? action;
+}
+
+interface RuleForm {
+  name: string;
+  description: string;
+  trigger: StoreEventType | "";
+  action: AutomationAction | "";
+}
+
+const emptyForm: RuleForm = {
+  name: "",
+  description: "",
+  trigger: "",
+  action: "",
+};
 
 export default function Automations() {
   const { data: rules = [], isLoading } = useAutomations();
   const toggleAutomation = useToggleAutomation();
   const createAutomation = useCreateAutomation();
   const deleteAutomation = useDeleteAutomation();
+  const updateAutomation = useUpdateAutomation();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingRule, setEditingRule] = useState<Automation | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    trigger_event: "",
-    action_type: "",
-  });
+  const [formData, setFormData] = useState<RuleForm>(emptyForm);
 
-  const activeRules = rules.filter((r) => r.is_active).length + 5; // +5 for System Rules
-  const totalExecutions = rules.reduce((sum, r) => sum + (r.execution_count || 0), 0);
+  // Only real rules from the store are rendered. There are no hardcoded
+  // "System Automations" — the previous sys-1..sys-5 block claimed SQL
+  // triggers that do not exist in this frontend-only app.
+  const activeRules = rules.filter((r) => r.enabled).length;
+  const totalExecutions = rules.reduce((sum, r) => sum + r.execution_count, 0);
 
-  // Core System Automations (Always Active via SQL Triggers)
-  const SYSTEM_AUTOMATIONS = [
-    {
-      id: "sys-1",
-      name: "Auto Check-In Flow",
-      description: "When Booking is Checked In → Mark Room Occupied & Ensure Invoice Exists",
-      trigger_event: "booking.checked_in",
-      action_type: "update_room_status",
-      is_active: true,
-      execution_count: 0,
-      is_system: true,
-    },
-    {
-      id: "sys-2",
-      name: "Checkout Cleaning Task",
-      description: "When Booking is Checked Out → Mark Room Dirty, Create Task & Notify Staff",
-      trigger_event: "booking.checked_out",
-      action_type: "create_task",
-      is_active: true,
-      execution_count: 0,
-      is_system: true,
-    },
-    {
-      id: "sys-3",
-      name: "Cancellation Cleanup",
-      description: "When Booking Cancelled → Free Room, Cancel Invoice & Remove Tasks",
-      trigger_event: "booking.cancelled",
-      action_type: "update_room_status",
-      is_active: true,
-      execution_count: 0,
-      is_system: true,
-    },
-    {
-      id: "sys-4",
-      name: "Room Ready Workflow",
-      description: "When Housekeeping Task Completed → Mark Room Available",
-      trigger_event: "task.completed",
-      action_type: "update_room_status",
-      is_active: true,
-      execution_count: 0,
-      is_system: true,
-    },
-    {
-      id: "sys-5",
-      name: "New Booking Alert",
-      description: "When Booking Created → Log Activity & Notify Dashboard",
-      trigger_event: "booking.created",
-      action_type: "create_alert",
-      is_active: true,
-      execution_count: 0,
-      is_system: true,
-    },
-  ];
+  const openCreateDialog = () => {
+    setEditingRule(null);
+    setFormData(emptyForm);
+    setIsDialogOpen(true);
+  };
 
-  const allRules = [...SYSTEM_AUTOMATIONS, ...rules];
-
-
-  const handleCreateRule = async () => {
-    await createAutomation.mutateAsync({
-      name: formData.name,
-      description: formData.description || null,
-      trigger_event: formData.trigger_event,
-      action_type: formData.action_type,
+  const openEditDialog = (rule: Automation) => {
+    setEditingRule(rule);
+    setFormData({
+      name: rule.name,
+      description: rule.description,
+      trigger: rule.trigger,
+      action: rule.action,
     });
+    setIsDialogOpen(true);
+  };
+
+  const handleSaveRule = async () => {
+    if (!formData.trigger || !formData.action) return;
+    const payload = {
+      name: formData.name,
+      description: formData.description,
+      trigger: formData.trigger,
+      action: formData.action,
+    };
+    if (editingRule) {
+      await updateAutomation.mutateAsync({ id: editingRule.id, updates: payload });
+    } else {
+      await createAutomation.mutateAsync(payload);
+    }
     setIsDialogOpen(false);
-    setFormData({ name: "", description: "", trigger_event: "", action_type: "" });
+    setEditingRule(null);
+    setFormData(emptyForm);
   };
 
   const handleToggle = async (id: string, currentState: boolean) => {
-    await toggleAutomation.mutateAsync({ id, is_active: !currentState });
+    await toggleAutomation.mutateAsync({ id, enabled: !currentState });
   };
 
   const handleDelete = async () => {
@@ -162,13 +160,7 @@ export default function Automations() {
     }
   };
 
-  const getTriggerLabel = (event: string) => {
-    return triggerEvents.find(t => t.value === event)?.label || event;
-  };
-
-  const getActionLabel = (action: string) => {
-    return actionTypes.find(a => a.value === action)?.label || action;
-  };
+  const isSaving = createAutomation.isPending || updateAutomation.isPending;
 
   if (isLoading) {
     return (
@@ -191,17 +183,32 @@ export default function Automations() {
               Rule-based automation engine for hotel operations
             </p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog
+            open={isDialogOpen}
+            onOpenChange={(open) => {
+              setIsDialogOpen(open);
+              if (!open) {
+                setEditingRule(null);
+                setFormData(emptyForm);
+              }
+            }}
+          >
             <DialogTrigger asChild>
-              <Button className="gap-2">
+              <Button className="gap-2" onClick={openCreateDialog}>
                 <Plus className="h-4 w-4" />
                 Create Rule
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Create Automation Rule</DialogTitle>
-                <DialogDescription>Set up a new automation to streamline operations.</DialogDescription>
+                <DialogTitle>
+                  {editingRule ? "Edit Automation Rule" : "Create Automation Rule"}
+                </DialogTitle>
+                <DialogDescription>
+                  {editingRule
+                    ? "Update this automation rule. Changes apply to future events only."
+                    : "Set up a new automation to streamline operations."}
+                </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
@@ -224,14 +231,16 @@ export default function Automations() {
                 <div className="space-y-2">
                   <Label>Trigger Event *</Label>
                   <Select
-                    value={formData.trigger_event}
-                    onValueChange={(v) => setFormData({ ...formData, trigger_event: v })}
+                    value={formData.trigger}
+                    onValueChange={(v) =>
+                      setFormData({ ...formData, trigger: v as StoreEventType })
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select trigger" />
                     </SelectTrigger>
                     <SelectContent>
-                      {triggerEvents.map((trigger) => (
+                      {triggerOptions.map((trigger) => (
                         <SelectItem key={trigger.value} value={trigger.value}>
                           {trigger.label}
                         </SelectItem>
@@ -242,14 +251,16 @@ export default function Automations() {
                 <div className="space-y-2">
                   <Label>Action *</Label>
                   <Select
-                    value={formData.action_type}
-                    onValueChange={(v) => setFormData({ ...formData, action_type: v })}
+                    value={formData.action}
+                    onValueChange={(v) =>
+                      setFormData({ ...formData, action: v as AutomationAction })
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select action" />
                     </SelectTrigger>
                     <SelectContent>
-                      {actionTypes.map((action) => (
+                      {actionOptions.map((action) => (
                         <SelectItem key={action.value} value={action.value}>
                           {action.label}
                         </SelectItem>
@@ -257,12 +268,30 @@ export default function Automations() {
                     </SelectContent>
                   </Select>
                 </div>
+                {formData.action === "send_email" && (
+                  <p className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/40 rounded-lg p-3">
+                    <MailWarning className="h-4 w-4 shrink-0 mt-0.5" />
+                    This app has no email service. The engine only records the
+                    email action in the activity log — no email is actually sent.
+                  </p>
+                )}
                 <Button
-                  onClick={handleCreateRule}
-                  disabled={createAutomation.isPending || !formData.name || !formData.trigger_event || !formData.action_type}
+                  onClick={handleSaveRule}
+                  disabled={
+                    isSaving ||
+                    !formData.name ||
+                    !formData.trigger ||
+                    !formData.action
+                  }
                   className="w-full"
                 >
-                  {createAutomation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create Automation"}
+                  {isSaving ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : editingRule ? (
+                    "Save Changes"
+                  ) : (
+                    "Create Automation"
+                  )}
                 </Button>
               </div>
             </DialogContent>
@@ -299,7 +328,7 @@ export default function Automations() {
                 <Clock className="h-6 w-6" />
               </div>
               <div>
-                <p className="text-3xl font-bold">{allRules.length}</p>
+                <p className="text-3xl font-bold">{rules.length}</p>
                 <p className="text-sm text-muted-foreground">Total Rules</p>
               </div>
             </div>
@@ -309,7 +338,7 @@ export default function Automations() {
         {/* Automation Rules */}
         <div className="space-y-4">
           <h2 className="text-lg font-semibold">Automation Rules</h2>
-          {allRules.length === 0 ? (
+          {rules.length === 0 ? (
             <div className="glass-card p-12 text-center">
               <div className="h-16 w-16 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-4">
                 <Zap className="h-8 w-8 text-muted-foreground" />
@@ -318,27 +347,29 @@ export default function Automations() {
               <p className="text-muted-foreground text-sm mb-4">
                 Create your first automation to streamline hotel operations
               </p>
-              <Button onClick={() => setIsDialogOpen(true)}>
+              <Button onClick={openCreateDialog}>
                 <Plus className="h-4 w-4 mr-2" />
                 Create Rule
               </Button>
             </div>
           ) : (
             <div className="grid gap-4">
-              {allRules.map((rule) => (
+              {rules.map((rule) => (
                 <div
                   key={rule.id}
-                  className={`glass-card p-5 transition-all duration-300 ${!rule.is_active ? "opacity-60" : ""
-                    }`}
+                  className={`glass-card p-5 transition-all duration-300 ${
+                    !rule.enabled ? "opacity-60" : ""
+                  }`}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
                         <div
-                          className={`h-8 w-8 rounded-lg flex items-center justify-center ${rule.is_active
-                            ? "bg-primary/10 text-primary"
-                            : "bg-muted text-muted-foreground"
-                            }`}
+                          className={`h-8 w-8 rounded-lg flex items-center justify-center ${
+                            rule.enabled
+                              ? "bg-primary/10 text-primary"
+                              : "bg-muted text-muted-foreground"
+                          }`}
                         >
                           <Zap className="h-4 w-4" />
                         </div>
@@ -357,7 +388,7 @@ export default function Automations() {
                             Trigger
                           </p>
                           <p className="text-sm font-mono bg-background/50 px-2 py-1 rounded">
-                            {getTriggerLabel(rule.trigger_event)}
+                            {getTriggerLabel(rule.trigger)}
                           </p>
                         </div>
                         <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -366,16 +397,31 @@ export default function Automations() {
                             Action
                           </p>
                           <p className="text-sm font-mono bg-background/50 px-2 py-1 rounded">
-                            {getActionLabel(rule.action_type)}
+                            {getActionLabel(rule.action)}
                           </p>
                         </div>
                       </div>
 
+                      {rule.action === "send_email" && (
+                        <p className="flex items-start gap-2 text-xs text-muted-foreground mt-3">
+                          <MailWarning className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                          Demo action: the engine only logs this email in the
+                          activity feed — no email is sent.
+                        </p>
+                      )}
+
                       {/* Stats */}
                       <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground">
-                        <span>Executions: {rule.execution_count || 0}</span>
-                        {rule.last_triggered_at && (
-                          <span>Last triggered: {formatDistanceToNow(new Date(rule.last_triggered_at), { addSuffix: true })}</span>
+                        <span>Executions: {rule.execution_count}</span>
+                        {rule.last_triggered_at ? (
+                          <span>
+                            Last triggered:{" "}
+                            {formatDistanceToNow(new Date(rule.last_triggered_at), {
+                              addSuffix: true,
+                            })}
+                          </span>
+                        ) : (
+                          <span>Never triggered</span>
                         )}
                       </div>
                     </div>
@@ -383,12 +429,19 @@ export default function Automations() {
                     {/* Controls */}
                     <div className="flex flex-col items-end gap-3">
                       <Switch
-                        checked={rule.is_active}
-                        onCheckedChange={() => handleToggle(rule.id, rule.is_active)}
+                        checked={rule.enabled}
+                        onCheckedChange={() => handleToggle(rule.id, rule.enabled)}
                         disabled={toggleAutomation.isPending}
+                        aria-label={`${rule.enabled ? "Disable" : "Enable"} ${rule.name}`}
                       />
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => openEditDialog(rule)}
+                          aria-label={`Edit ${rule.name}`}
+                        >
                           <Edit className="h-4 w-4" />
                         </Button>
                         <Button
@@ -396,6 +449,7 @@ export default function Automations() {
                           size="icon"
                           className="h-8 w-8 text-destructive"
                           onClick={() => setDeleteId(rule.id)}
+                          aria-label={`Delete ${rule.name}`}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>

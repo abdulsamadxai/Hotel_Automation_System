@@ -34,7 +34,9 @@ const tagConfig: Record<GuestTag, { icon: React.ElementType; color: string }> = 
 };
 
 export default function Guests() {
-  const { data: guests = [], isLoading } = useGuests();
+  const [searchTerm, setSearchTerm] = useState("");
+  // Search is server-side (?q= on name / email / phone).
+  const { data: guests = [], isLoading } = useGuests(searchTerm);
   const createGuest = useCreateGuest();
   const updateGuest = useUpdateGuest();
   const deleteGuest = useDeleteGuest();
@@ -43,7 +45,6 @@ export default function Guests() {
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingGuest, setEditingGuest] = useState<Guest | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
 
   const [formData, setFormData] = useState({
     name: "",
@@ -118,11 +119,7 @@ export default function Guests() {
   };
 
 
-  const filteredGuests = guests.filter(g =>
-    (g.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (g.email && g.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (g.phone && g.phone.includes(searchTerm))
-  );
+  const filteredGuests = guests;
 
   const vipCount = guests.filter((g) => g.tags.includes("vip")).length;
   const totalGuests = guests.length;

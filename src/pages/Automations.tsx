@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import {
   useAutomations,
+  useAutomationExecutions,
   useToggleAutomation,
   useCreateAutomation,
   useDeleteAutomation,
@@ -98,6 +99,7 @@ const emptyForm: RuleForm = {
 
 export default function Automations() {
   const { data: rules = [], isLoading } = useAutomations();
+  const { data: executions = [] } = useAutomationExecutions();
   const toggleAutomation = useToggleAutomation();
   const createAutomation = useCreateAutomation();
   const deleteAutomation = useDeleteAutomation();
@@ -455,6 +457,41 @@ export default function Automations() {
                         </Button>
                       </div>
                     </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Recent executions — every rule run the server recorded */}
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold">Recent Executions</h2>
+          {executions.length === 0 ? (
+            <div className="glass-card p-8 text-center">
+              <p className="text-muted-foreground text-sm">
+                No automation has run yet. Executions appear here when a rule
+                fires.
+              </p>
+            </div>
+          ) : (
+            <div className="glass-card divide-y">
+              {executions.slice(0, 20).map((execution) => (
+                <div key={execution.id} className="p-4 flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {execution.automation?.name ?? "Unknown rule"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {execution.event} · {execution.automation?.action ?? ""}
+                      {execution.detail ? ` — ${execution.detail}` : ""}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-xs font-medium capitalize">{execution.status}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatDistanceToNow(new Date(execution.created_at), { addSuffix: true })}
+                    </p>
                   </div>
                 </div>
               ))}

@@ -46,9 +46,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useCurrency } from "@/contexts/AppSettingsContext";
 import { formatAndConvert } from "@/utils/currency";
 import { useAuth } from "@/hooks/useAuth";
+import { useHotel } from "@/hooks/useHotels";
 import { format } from "date-fns";
-import { mockStore } from "@/lib/mockStore";
-import type { Hotel } from "@/lib/types";
 import { useInvoices, useCreateInvoice, useUpdateInvoice, useDeleteInvoice, type Invoice, type LineItem } from "@/hooks/useInvoices";
 
 /** Tax rate applied to invoice line-item subtotals (matches the 10% seed data). */
@@ -85,21 +84,8 @@ export default function Billing() {
 
   const [isEmailing, setIsEmailing] = useState(false);
 
-  // Hotel record from the store, for the invoice preview header.
-  const [hotel, setHotel] = useState<Hotel | null>(null);
-  useEffect(() => {
-    if (!hotelId || hotelId === "global") {
-      setHotel(null);
-      return;
-    }
-    let cancelled = false;
-    mockStore.hotels.getById(hotelId).then((h) => {
-      if (!cancelled) setHotel(h ?? null);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [hotelId]);
+  // Hotel record from the API, for the invoice preview header.
+  const { data: hotel } = useHotel(hotelId === "global" ? null : hotelId);
 
   const handlePrint = () => {
     setIsPreviewOpen(true);
@@ -204,7 +190,6 @@ export default function Billing() {
       booking_id: formData.booking_id || undefined,
       amount: finalAmount,
       tax: finalTax,
-      amount_paid: 0, // Manual invoice creation usually starts with 0 paid unless specified otherwise
       line_items: formData.line_items ?? [],
       status: "pending"
     });

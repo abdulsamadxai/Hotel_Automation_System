@@ -10,10 +10,18 @@ import {
 } from "@/components/ui/table";
 import { useGlobalStaff } from "@/hooks/useStaff";
 
+/**
+ * Every staff account across all hotels (the store's `getAll('global')`
+ * path). Names come from the canonical `full_name` field.
+ */
 export function GlobalUsersTable() {
     const { data: staff = [], isLoading } = useGlobalStaff();
 
     if (isLoading) return <div className="p-8 flex justify-center"><Loader2 className="animate-spin" /></div>;
+
+    if (staff.length === 0) {
+        return <p className="p-6 text-sm text-muted-foreground">No staff accounts yet.</p>;
+    }
 
     return (
         <Table>
@@ -27,19 +35,17 @@ export function GlobalUsersTable() {
                 </TableRow>
             </TableHeader>
             <TableBody>
-                {staff.filter(Boolean).map((member: any, idx: number) => (
-                    <TableRow key={member?.id || idx} className="hover:bg-primary/5 transition-colors">
-                        <TableCell className="font-medium">{member?.full_name || member?.name || "System"}</TableCell>
-                        <TableCell>{member?.email || "—"}</TableCell>
+                {staff.map((member) => (
+                    <TableRow key={member.id} className="hover:bg-primary/5 transition-colors">
+                        <TableCell className="font-medium">{member.full_name}</TableCell>
+                        <TableCell>{member.email ?? "—"}</TableCell>
                         <TableCell>
-                            <div className="flex items-center gap-2">
-                                <span className="capitalize">{(member?.role || 'user').replace('_', ' ')}</span>
-                            </div>
+                            <span className="capitalize">{member.role.replace("_", " ")}</span>
                         </TableCell>
-                        <TableCell>{member?.hotels?.name || "Global"}</TableCell>
+                        <TableCell>{member.hotels?.name ?? "Global"}</TableCell>
                         <TableCell>
-                            <Badge variant="outline" className={member?.status === 'on_duty' ? "bg-status-success/5 text-status-success border-status-success/20" : ""}>
-                                {member?.status || 'inactive'}
+                            <Badge variant="outline" className={member.status === 'on_duty' ? "bg-status-success/5 text-status-success border-status-success/20" : ""}>
+                                {member.status}
                             </Badge>
                         </TableCell>
                     </TableRow>

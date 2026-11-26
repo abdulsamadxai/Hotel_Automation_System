@@ -1,27 +1,17 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { mockStore } from "@/lib/mockStore";
 import { useQueryClient } from "@tanstack/react-query";
+import type { ActivityLog as CanonicalActivityLog } from "@/lib/types";
+import { useAuth } from "@/hooks/useAuth";
 
 export type ActivityType = "booking" | "task" | "alert" | "automation" | "room";
 
-export interface Activity {
-  id: string;
-  event_type?: ActivityType;
-  event_name?: string;
-  action?: string;
-  entity_type?: string;
-  entity_id?: string;
-  title?: string;
-  description?: string | null;
-  details?: string;
-  metadata?: Record<string, unknown>;
-  source?: string;
-  user_id?: string | null;
-  user_name?: string;
-  created_at: string;
-}
+/** Canonical activity log: `action`, `details`, `entity_type`, `created_at`. */
+export type Activity = CanonicalActivityLog;
 
-import { useAuth } from "@/hooks/useAuth";
+function toErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "An unknown error occurred";
+}
 
 export function useActivity(limit: number = 10) {
   const { hotelId } = useAuth();
@@ -31,7 +21,12 @@ export function useActivity(limit: number = 10) {
     queryFn: async () => {
       if (!hotelId) return [];
       const logs = await mockStore.activity.getAll(hotelId);
-      return logs.slice(0, limit);
+      // Newest first (the store already sorts; sort defensively) then limit.
+      const sorted = [...logs].sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      );
+      return sorted.slice(0, limit);
     },
     enabled: !!hotelId,
   });
@@ -58,11 +53,13 @@ export function useDeleteActivity() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      // Mock delete - activity logs are typically append-only so this is optional
-      // For now we'll just skip deleting
+      await mockStore.activity.delete(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["activity"] });
+    },
+    onError: (error: unknown) => {
+      console.error("Error deleting activity log:", toErrorMessage(error));
     },
   });
 }

@@ -1,20 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { mockStore } from "@/lib/mockStore";
+import type { Expense as CanonicalExpense } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 
-export interface Expense {
-    id: string;
-    amount: number;
-    category: string;
-    description: string;
-    date: string;  // Primary field used in mockData
-    expense_date?: string;  // Legacy field for compatibility
-    vendor?: string;
-    created_by?: string;
-    created_at: string;
-    hotel_id?: string;
-    recorded_by?: string;
+export type Expense = CanonicalExpense;
+
+function toErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "An unknown error occurred";
 }
 
 export function useExpenses(hotelId?: string) {
@@ -36,15 +29,15 @@ export function useCreateExpense() {
     const { hotelId } = useAuth();
 
     return useMutation({
-        mutationFn: async (expense: Partial<Expense>) => {
+        mutationFn: async (expense: Omit<Expense, "id" | "hotel_id" | "created_at">) => {
             return await mockStore.expenses.create(expense, hotelId);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["expenses"] });
             toast({ title: "Expense recorded successfully" });
         },
-        onError: (error: any) => {
-            toast({ title: "Error recording expense", description: error.message, variant: "destructive" });
+        onError: (error: unknown) => {
+            toast({ title: "Error recording expense", description: toErrorMessage(error), variant: "destructive" });
         },
     });
 }
@@ -60,8 +53,8 @@ export function useDeleteExpense() {
             queryClient.invalidateQueries({ queryKey: ["expenses"] });
             toast({ title: "Expense deleted successfully" });
         },
-        onError: (error: any) => {
-            toast({ title: "Error deleting expense", description: error.message, variant: "destructive" });
+        onError: (error: unknown) => {
+            toast({ title: "Error deleting expense", description: toErrorMessage(error), variant: "destructive" });
         },
     });
 }

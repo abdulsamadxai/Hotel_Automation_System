@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { mockStore } from "@/lib/mockStore";
+import { api, hotelParams } from "@/lib/api";
 import type { Notification as CanonicalNotification, NotificationType } from "@/lib/types";
 import { useAuth } from "./useAuth";
 
@@ -15,7 +15,7 @@ export function useNotifications() {
     queryKey: ["notifications", user?.id, hotelId],
     queryFn: async () => {
       if (!hotelId) return [];
-      const notifications = await mockStore.notifications.getAll(hotelId);
+      const notifications = await api.get<Notification[]>("/api/notifications", hotelParams(hotelId));
       // Filter by user if needed (or return all for the hotel)
       return notifications.slice(0, 50); // Limit to 50
     },
@@ -34,7 +34,7 @@ export function useMarkAsRead() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      await mockStore.notifications.update(id, { is_read: true });
+      await api.patch(`/api/notifications/${id}/read`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications", user?.id] });
@@ -48,7 +48,7 @@ export function useDeleteNotification() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      await mockStore.notifications.delete(id);
+      await api.del(`/api/notifications/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications", user?.id] });
@@ -58,16 +58,11 @@ export function useDeleteNotification() {
 
 export function useMarkAllAsRead() {
   const queryClient = useQueryClient();
-  const { user, hotelId } = useAuth();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async () => {
-      if (!hotelId) return;
-      const notifications = await mockStore.notifications.getAll(hotelId);
-      const unread = notifications.filter(n => !n.is_read);
-      for (const notif of unread) {
-        await mockStore.notifications.update(notif.id, { is_read: true });
-      }
+      await api.post("/api/notifications/read-all");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications", user?.id] });
@@ -76,6 +71,7 @@ export function useMarkAllAsRead() {
 }
 
 export function useRealtimeNotifications() {
-  // Mock implementation - no realtime in frontend-only
-  // This hook can remain but does nothing
+  // No realtime channel — the list refreshes on navigation and on
+  // invalidation after mutations. This hook stays as a no-op so existing
+  // call sites keep compiling.
 }

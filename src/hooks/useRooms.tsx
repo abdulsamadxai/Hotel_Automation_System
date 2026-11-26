@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { mockStore, type RoomCreateInput } from "@/lib/mockStore";
-import type { Room as CanonicalRoom, RoomStatus, RoomType } from "@/lib/types";
+import { api, hotelParams } from "@/lib/api";
+import type { Room as CanonicalRoom, RoomCreateInput, RoomStatus, RoomType } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -20,21 +20,18 @@ export function useRooms() {
     queryKey: ["rooms", hotelId],
     queryFn: async () => {
       if (!hotelId) return [];
-      return await mockStore.rooms.getAll(hotelId);
+      return await api.get<Room[]>("/api/rooms", hotelParams(hotelId));
     },
     enabled: !!hotelId,
   });
 }
 
 export function useRoom(id: string) {
-  const { hotelId } = useAuth();
-
   return useQuery({
     queryKey: ["rooms", id],
     queryFn: async () => {
-      if (!hotelId) return null;
-      const rooms = await mockStore.rooms.getAll(hotelId);
-      return rooms.find(r => r.id === id) || null;
+      if (!id) return null;
+      return await api.get<Room>(`/api/rooms/${id}`);
     },
     enabled: !!id,
   });
@@ -42,11 +39,10 @@ export function useRoom(id: string) {
 
 export function useCreateRoom() {
   const queryClient = useQueryClient();
-  const { hotelId } = useAuth();
 
   return useMutation({
     mutationFn: async (room: RoomCreateInput) => {
-      return await mockStore.rooms.create(room, hotelId);
+      return await api.post<Room>("/api/rooms", room);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["rooms"] });
@@ -63,7 +59,7 @@ export function useUpdateRoom() {
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<Room> & { id: string }) => {
-      return await mockStore.rooms.update(id, updates);
+      return await api.patch<Room>(`/api/rooms/${id}`, updates);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["rooms"] });
@@ -80,7 +76,7 @@ export function useDeleteRoom() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      await mockStore.rooms.delete(id);
+      await api.del(`/api/rooms/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["rooms"] });

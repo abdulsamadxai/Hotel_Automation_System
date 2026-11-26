@@ -4,7 +4,7 @@ import { LogIn, LogOut, Bell, CheckCheck } from "lucide-react";
 import { format, parseISO, isValid } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import type { BookingWithJoins } from "@/lib/mockStore";
+import type { BookingWithJoins } from "@/lib/types";
 import type { HousekeepingTask } from "@/hooks/useHousekeeping";
 import type { Notification } from "@/lib/types";
 import { useUpdateBookingStatus } from "@/hooks/useBookings";

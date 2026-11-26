@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { mockStore } from "@/lib/mockStore";
+import { api, hotelParams } from "@/lib/api";
 import type { Expense as CanonicalExpense } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -18,7 +18,7 @@ export function useExpenses(hotelId?: string) {
         queryKey: ["expenses", targetHotelId],
         queryFn: async () => {
             if (!targetHotelId) return [];
-            return await mockStore.expenses.getAll(targetHotelId);
+            return await api.get<Expense[]>("/api/expenses", hotelParams(targetHotelId));
         },
         enabled: !!targetHotelId,
     });
@@ -26,11 +26,10 @@ export function useExpenses(hotelId?: string) {
 
 export function useCreateExpense() {
     const queryClient = useQueryClient();
-    const { hotelId } = useAuth();
 
     return useMutation({
         mutationFn: async (expense: Omit<Expense, "id" | "hotel_id" | "created_at">) => {
-            return await mockStore.expenses.create(expense, hotelId);
+            return await api.post<Expense>("/api/expenses", expense);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["expenses"] });
@@ -47,7 +46,7 @@ export function useDeleteExpense() {
 
     return useMutation({
         mutationFn: async (id: string) => {
-            await mockStore.expenses.delete(id);
+            await api.del(`/api/expenses/${id}`);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["expenses"] });

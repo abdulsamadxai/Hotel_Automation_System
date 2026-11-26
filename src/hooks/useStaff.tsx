@@ -1,24 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { mockStore } from "@/lib/mockStore";
+import { mockStore, type StaffCreateInput, type StaffWithJoins } from "@/lib/mockStore";
+import type { StaffMember as CanonicalStaff, StaffRole, StaffStatus } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 
-export type StaffRole = "housekeeping" | "manager" | "owner" | "staff";
-export type StaffStatus = "on_duty" | "off_duty" | "break" | "active";
+export type { StaffRole, StaffStatus } from "@/lib/types";
 
-export interface StaffMember {
-  id: string;
-  user_id: string | null;
-  name?: string;
-  full_name?: string;
-  email: string | null;
-  phone: string | null;
-  role: StaffRole;
-  status: StaffStatus;
-  shift?: string | null;
-  hire_date?: string;
-  created_at: string;
-  updated_at?: string;
+/** Canonical staff member: `full_name` only (no `name`). */
+export type StaffMember = CanonicalStaff;
+
+export type StaffWithHotel = StaffWithJoins;
+
+function toErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "An unknown error occurred";
 }
 
 export function useStaff() {
@@ -48,33 +42,20 @@ export function useCreateStaff() {
   const { hotelId: currentHotelId } = useAuth();
 
   return useMutation({
-    mutationFn: async (staff: {
-      name?: string;
-      full_name?: string;
-      email?: string;
-      password?: string;
-      phone?: string;
-      role?: StaffRole;
-      shift?: string;
-      status?: StaffStatus;
-    }) => {
+    // Staff record creation only — it creates NO login user and NO password.
+    // A login account is created via sign-up (auth), not from this form.
+    mutationFn: async (staff: StaffCreateInput) => {
       const hotelId = currentHotelId;
       if (!hotelId) throw new Error("Could not determine hotel property context.");
 
-      const staffData = {
-        ...staff,
-        full_name: staff.full_name || staff.name,
-        name: staff.name || staff.full_name,
-      };
-
-      return await mockStore.staff.create(staffData, hotelId);
+      return await mockStore.staff.create(staff, hotelId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff"] });
-      toast({ title: "Staff member added successfully", description: "Account created and linked to your hotel." });
+      toast({ title: "Staff member added successfully" });
     },
-    onError: (error: any) => {
-      toast({ title: "Error adding staff", description: error.message, variant: "destructive" });
+    onError: (error: unknown) => {
+      toast({ title: "Error adding staff", description: toErrorMessage(error), variant: "destructive" });
     },
   });
 }
@@ -90,8 +71,8 @@ export function useUpdateStaff() {
       queryClient.invalidateQueries({ queryKey: ["staff"] });
       toast({ title: "Staff member updated successfully" });
     },
-    onError: (error: any) => {
-      toast({ title: "Error updating staff", description: error.message, variant: "destructive" });
+    onError: (error: unknown) => {
+      toast({ title: "Error updating staff", description: toErrorMessage(error), variant: "destructive" });
     },
   });
 }
@@ -107,8 +88,8 @@ export function useUpdateStaffStatus() {
       queryClient.invalidateQueries({ queryKey: ["staff"] });
       toast({ title: "Staff status updated" });
     },
-    onError: (error: any) => {
-      toast({ title: "Error updating status", description: error.message, variant: "destructive" });
+    onError: (error: unknown) => {
+      toast({ title: "Error updating status", description: toErrorMessage(error), variant: "destructive" });
     },
   });
 }
@@ -124,8 +105,8 @@ export function useDeleteStaff() {
       queryClient.invalidateQueries({ queryKey: ["staff"] });
       toast({ title: "Staff member removed successfully" });
     },
-    onError: (error: any) => {
-      toast({ title: "Error removing staff", description: error.message, variant: "destructive" });
+    onError: (error: unknown) => {
+      toast({ title: "Error removing staff", description: toErrorMessage(error), variant: "destructive" });
     },
   });
 }

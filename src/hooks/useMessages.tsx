@@ -1,30 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { mockStore } from "@/lib/mockStore";
+import { mockStore, type MessageCreateInput } from "@/lib/mockStore";
+import type { Message as CanonicalMessage, MessageChannel, MessageDirection } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 
-export interface Message {
-    id: string;
-    guest_id: string;
-    guest_name?: string;
-    guest_email?: string;
-    guest_phone?: string;
-    subject?: string;
-    content?: string;
-    message?: string;
-    direction?: "inbound" | "outbound";
-    channel?: "email" | "sms" | "whatsapp" | "internal";
-    status: "sent" | "delivered" | "read" | "failed" | "pending" | "resolved";
-    priority?: "low" | "medium" | "high";
-    assigned_to?: string | null;
-    created_at: string;
-    updated_at?: string;
-    guest?: {
-        name: string;
-        email: string;
-        room_number?: string;
-    };
-}
+export type { MessageChannel, MessageDirection } from "@/lib/types";
+
+/** Canonical message: `message` body + `direction` (no `content`). */
+export type Message = CanonicalMessage;
 
 export interface Conversation {
     guest_id: string;
@@ -32,7 +15,11 @@ export interface Conversation {
     last_message: string;
     last_message_at: string;
     unread_count: number;
-    channel: "email" | "sms" | "whatsapp" | "internal";
+    channel: MessageChannel;
+}
+
+function toErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : "An unknown error occurred";
 }
 
 export function useMessages(guestId: string | null) {
@@ -80,8 +67,9 @@ export function useConversations() {
                 conversations.push({
                     guest_id: guestId,
                     guest_name: guest.name,
-                    last_message: last.content || last.message || '',
+                    last_message: last.message,
                     last_message_at: last.created_at,
+                    // Unread = inbound messages that have not been read.
                     unread_count: msgs.filter(m => m.direction === 'inbound' && m.status !== 'read').length,
                     channel: last.channel || 'internal'
                 });
@@ -100,28 +88,35 @@ export function useSendMessage() {
     const { hotelId } = useAuth();
 
     return useMutation({
-        mutationFn: async (msg: { guest_id: string; content: string; channel: string }) => {
-            return await mockStore.messages.create({
-                ...msg,
+        mutationFn: async (msg: { guest_id: string; message: string; channel?: MessageChannel }) => {
+            const input: MessageCreateInput = {
+                guest_id: msg.guest_id,
+                message: msg.message,
+                channel: msg.channel,
                 direction: 'outbound',
-                status: 'sent'
-            }, hotelId);
+                status: 'sent',
+            };
+            return await mockStore.messages.create(input, hotelId);
         },
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: ["messages", variables.guest_id] });
             queryClient.invalidateQueries({ queryKey: ["conversations"] });
             toast({ title: "Message sent" });
         },
+        onError: (error: unknown) => {
+            toast({ title: "Error sending message", description: toErrorMessage(error), variant: "destructive" });
+        },
     });
 }
 
 export function useDeleteConversation() {
     const queryClient = useQueryClient();
+    // useAuth() is called at the top level of the hook — never inside mutationFn.
+    const { hotelId } = useAuth();
 
     return useMutation({
         mutationFn: async (guestId: string) => {
-            // Delete all messages for this guest - we'll need a special method
-            const { hotelId } = useAuth();
+            if (!hotelId) throw new Error("Could not determine hotel property context.");
             const messages = await mockStore.messages.getAll(hotelId);
             const guestMessages = messages.filter(m => m.guest_id === guestId);
             for (const msg of guestMessages) {
@@ -132,6 +127,9 @@ export function useDeleteConversation() {
             queryClient.invalidateQueries({ queryKey: ["conversations"] });
             queryClient.invalidateQueries({ queryKey: ["messages"] });
             toast({ title: "Conversation deleted" });
-        }
+        },
+        onError: (error: unknown) => {
+            toast({ title: "Error deleting conversation", description: toErrorMessage(error), variant: "destructive" });
+        },
     });
 }

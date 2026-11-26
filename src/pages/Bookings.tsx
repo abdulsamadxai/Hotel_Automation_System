@@ -142,15 +142,13 @@ export default function Bookings() {
     }
     try {
       if (editingBooking) {
-        // Re-save the total recomputed from the canonical nightly price.
-        // The store does not recompute totals on update, so the page must.
+        // Nights and the total are recomputed server-side from the room's
+        // price_per_night — only the dates / room are sent.
         await updateBooking.mutateAsync({
           id: editingBooking.id,
           check_in: formData.checkIn,
           check_out: formData.checkOut,
           room_id: formData.roomId,
-          nights,
-          total_amount: totalAmount,
         });
       } else {
         let customerId = "";
@@ -202,7 +200,7 @@ export default function Bookings() {
           paymentStatus = "partially_paid";
         }
 
-        // The store computes the authoritative total as
+        // The server computes the authoritative total as
         // price_per_night x nights and throws on bad dates, overlapping
         // bookings for the room, or a blocked guest.
         await createBooking.mutateAsync({
@@ -210,7 +208,6 @@ export default function Bookings() {
           room_id: formData.roomId,
           check_in: formData.checkIn,
           check_out: formData.checkOut,
-          total_amount: totalAmount,
           status: "confirmed",
           guest_type: formData.guestType,
           payment_status: paymentStatus,

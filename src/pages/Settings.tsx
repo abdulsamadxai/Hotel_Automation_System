@@ -36,8 +36,8 @@ export default function Settings() {
     }
   }, [hotel]);
 
-  // Persists through the store (mockStore.hotels.update writes to the
-  // persisted store state), so a reload keeps the change.
+  // Persists through the API (PATCH /api/hotels/:id), so a reload keeps
+  // the change.
   const updateHotel = useUpdateHotel(hotelId);
 
   const handleSave = () => {

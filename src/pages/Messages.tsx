@@ -5,17 +5,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Search, Send, MessageSquare, User, Phone, Mail, Loader2, Trash2, RefreshCw } from "lucide-react";
 import { useState, useEffect } from "react";
-import { useConversations, useMessages, useSendMessage, useDeleteConversation, Conversation, Message } from "@/hooks/useMessages";
+import { useConversations, useMessages, useSendMessage, useDeleteConversation, type Conversation, type Message, type MessageChannel } from "@/hooks/useMessages";
 import { formatDistanceToNow } from "date-fns";
+import type { LucideIcon } from "lucide-react";
 
-const channelIcons: any = {
+const channelIcons: Record<MessageChannel, LucideIcon> = {
   email: Mail,
   sms: MessageSquare,
   whatsapp: Phone,
   internal: User,
 };
 
-const channelColors: any = {
+const channelColors: Record<MessageChannel, string> = {
   email: "bg-status-info/15 text-status-info",
   sms: "bg-status-success/15 text-status-success",
   whatsapp: "bg-status-success/15 text-status-success",
@@ -51,7 +52,7 @@ export default function Messages() {
 
     await sendMessage.mutateAsync({
       guest_id: selectedGuestId,
-      content: newMessage,
+      message: newMessage,
       channel: currentConvo?.channel || 'sms'
     });
 
@@ -198,7 +199,7 @@ export default function Messages() {
                             : "bg-card border border-border"
                             }`}
                         >
-                          <p className="text-sm">{msg.content}</p>
+                          <p className="text-sm">{msg.message}</p>
                           <div className={`flex items-center gap-1 mt-1 justify-end ${msg.direction === "outbound" ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
                             <span className="text-[10px]">{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                             {msg.direction === "outbound" && (

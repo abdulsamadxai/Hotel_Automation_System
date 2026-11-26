@@ -64,13 +64,13 @@ export const CURRENCIES: Record<Currency, CurrencyConfig> = {
 /**
  * Format a number as currency with proper symbol and decimals
  */
-export function formatCurrency(amount: any, currency: Currency = 'USD'): string {
+export function formatCurrency(amount: unknown, currency: Currency = 'USD'): string {
     try {
         const config = CURRENCIES[currency] || CURRENCIES.USD;
         const numAmount = Number(amount) || 0;
         const formatted = numAmount.toFixed(config.decimals || 2);
         return `${config.symbol || '$'}${formatted}`;
-    } catch (e) {
+    } catch (e: unknown) {
         console.error("Currency formatting error:", e);
         return `$${amount || '0.00'}`;
     }
@@ -79,11 +79,11 @@ export function formatCurrency(amount: any, currency: Currency = 'USD'): string 
 /**
  * Convert amount from USD to target currency
  */
-export function convertFromUSD(amountUSD: any, toCurrency: Currency): number {
+export function convertFromUSD(amountUSD: unknown, toCurrency: Currency): number {
     try {
         const config = CURRENCIES[toCurrency] || CURRENCIES.USD;
         return (Number(amountUSD) || 0) * (config.rate || 1);
-    } catch (e) {
+    } catch (_e: unknown) {
         return Number(amountUSD) || 0;
     }
 }
@@ -91,11 +91,11 @@ export function convertFromUSD(amountUSD: any, toCurrency: Currency): number {
 /**
  * Convert amount to USD from source currency
  */
-export function convertToUSD(amount: any, fromCurrency: Currency): number {
+export function convertToUSD(amount: unknown, fromCurrency: Currency): number {
     try {
         const config = CURRENCIES[fromCurrency] || CURRENCIES.USD;
         return (Number(amount) || 0) / (config.rate || 1);
-    } catch (e) {
+    } catch (_e: unknown) {
         return Number(amount) || 0;
     }
 }
@@ -104,7 +104,7 @@ export function convertToUSD(amount: any, fromCurrency: Currency): number {
  * Convert between any two currencies
  */
 export function convertCurrency(
-    amount: any,
+    amount: unknown,
     from: Currency,
     to: Currency
 ): number {
@@ -117,7 +117,7 @@ export function convertCurrency(
  * Format and convert currency in one step
  * Assumes input amount is in USD
  */
-export function formatAndConvert(amountUSD: any, currency: Currency): string {
+export function formatAndConvert(amountUSD: unknown, currency: Currency): string {
     const converted = convertFromUSD(amountUSD, currency);
     return formatCurrency(converted, currency);
 }

@@ -66,6 +66,12 @@ interface DashboardChartsProps {
    */
   occupancyTrend?: Array<{ date: string; rate: number }>;
   revenueTrend?: Array<{ date: string; amount: number }>;
+  /**
+   * Hide the 30-day revenue trend chart. Managers see only today's
+   * revenue, so they never get the revenue history — owner and
+   * super-admin only. Defaults to true.
+   */
+  showRevenue?: boolean;
 }
 
 /**
@@ -82,6 +88,7 @@ export function DashboardCharts({
   currency,
   occupancyTrend,
   revenueTrend,
+  showRevenue = true,
 }: DashboardChartsProps) {
   const occupancyData = useMemo(() => {
     if (occupancyTrend) {
@@ -182,33 +189,35 @@ export function DashboardCharts({
         )}
       </div>
 
-      <div className="glass-card p-5">
-        <div className="flex items-start justify-between gap-2 mb-1">
-          <div>
-            <h3 className="text-base font-semibold">Revenue trend</h3>
-            <p className="text-xs text-muted-foreground">
-              Last 30 days, {rangeLabel} — invoice totals by paid date
+      {showRevenue && (
+        <div className="glass-card p-5">
+          <div className="flex items-start justify-between gap-2 mb-1">
+            <div>
+              <h3 className="text-base font-semibold">Revenue trend</h3>
+              <p className="text-xs text-muted-foreground">
+                Last 30 days, {rangeLabel} — invoice totals by paid date
+              </p>
+            </div>
+            <p className="text-sm font-bold whitespace-nowrap">
+              {formatAndConvert(totalRevenue30d, currency)}
             </p>
           </div>
-          <p className="text-sm font-bold whitespace-nowrap">
-            {formatAndConvert(totalRevenue30d, currency)}
-          </p>
+          <div className="h-56 sm:h-64 mt-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={revenueData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.2} stroke="hsl(var(--border))" />
+                <XAxis dataKey="day" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} interval={4} />
+                <YAxis
+                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                  domain={[0, "auto"]}
+                />
+                <Tooltip content={<RevenueTooltip currency={currency} />} />
+                <Bar dataKey="revenue" name="Revenue" fill="hsl(var(--status-info))" radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
-        <div className="h-56 sm:h-64 mt-4">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={revenueData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.2} stroke="hsl(var(--border))" />
-              <XAxis dataKey="day" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} interval={4} />
-              <YAxis
-                tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                domain={[0, "auto"]}
-              />
-              <Tooltip content={<RevenueTooltip currency={currency} />} />
-              <Bar dataKey="revenue" name="Revenue" fill="hsl(var(--status-info))" radius={[3, 3, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

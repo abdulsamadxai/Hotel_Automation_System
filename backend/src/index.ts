@@ -27,7 +27,13 @@ export function createApp(): Express {
   const app = express();
 
   app.use(helmet());
-  const corsOrigins = (process.env.CORS_ORIGIN ?? 'http://localhost:5173')
+  // CORS_ORIGIN is a comma-separated list. Default covers the Vite dev
+  // server (5173), this repo's frontend dev server (8080, vite.config.ts)
+  // and Vite preview (4173) so local dev works out of the box.
+  const corsOrigins = (
+    process.env.CORS_ORIGIN ??
+    'http://localhost:5173,http://localhost:8080,http://localhost:4173'
+  )
     .split(',')
     .map((o) => o.trim())
     .filter(Boolean);
@@ -77,7 +83,7 @@ const isMain =
   process.argv[1]?.endsWith('index.js');
 
 if (isMain) {
-  // Fail loudly at boot in production when JWT_SECRET is missing.
+  // Fail loudly at boot when JWT_SECRET is missing or a placeholder.
   getJwtSecret();
   const port = Number(process.env.PORT ?? 3001);
   const app = createApp();

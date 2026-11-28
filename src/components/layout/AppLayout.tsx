@@ -2,9 +2,8 @@ import { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
-import { Bell, Search, LogOut, Settings } from "lucide-react";
+import { Bell, LogOut, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useUnreadCount } from "@/hooks/useNotifications";
 import { useAuth, UserRole } from "@/hooks/useAuth";
 import { GlobalLoader } from "./GlobalLoader";
@@ -62,16 +61,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         <div className="flex-1 flex flex-col">
           <header className="sticky top-0 z-50 h-14 border-b border-border bg-background/80 backdrop-blur-xl flex items-center justify-between px-4 gap-4">
             <div className="flex items-center gap-4">
-              <SidebarTrigger className="h-8 w-8" />
-              {role !== 'housekeeping' && (
-                <div className="relative hidden md:block">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search bookings, guests, rooms..."
-                    className="w-80 pl-10 bg-muted/50 border-0 focus-visible:ring-1 focus-visible:ring-primary"
-                  />
-                </div>
-              )}
+              <SidebarTrigger className="h-10 w-10" />
             </div>
             <div className="flex items-center gap-3">
               <Button
@@ -88,7 +78,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="h-8 w-8 rounded-full p-0 bg-primary/20 hover:bg-primary/30">
+                  <Button variant="ghost" className="h-10 w-10 rounded-full p-0 bg-primary/20 hover:bg-primary/30">
                     <span className="text-primary text-sm font-medium">{getInitials()}</span>
                   </Button>
                 </DropdownMenuTrigger>
@@ -118,7 +108,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               </DropdownMenu>
             </div>
           </header>
-          <main className="flex-1 overflow-auto p-6">{children}</main>
+          <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8">{children}</main>
         </div>
       </div>
     </SidebarProvider>

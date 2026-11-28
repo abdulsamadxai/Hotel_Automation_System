@@ -37,7 +37,7 @@ export function RoomStatusGrid({ rooms, onSelectRoom, selectedRoomId }: RoomStat
     <div className="glass-card overflow-hidden">
       <div className="p-4 border-b border-border">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="font-semibold">Room Status</h3>
+          <h3 className="text-base font-semibold">Room Status</h3>
           <div className="flex flex-wrap gap-2">
             {ALL_STATUSES.map((status) => (
               <StatusBadge key={status} status={status} size="sm" />
@@ -58,25 +58,22 @@ export function RoomStatusGrid({ rooms, onSelectRoom, selectedRoomId }: RoomStat
                 <p className="text-xs text-muted-foreground mb-2">
                   Floor {floor}
                 </p>
-                <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
                   {floorRooms.map((room) => (
                     <button
                       key={room.id}
                       type="button"
                       aria-label={`Room ${room.number}, ${room.status}`}
                       onClick={() => onSelectRoom(room)}
-                      className={`p-2 rounded-lg border text-center transition-all duration-200 ${
+                      className={`p-2 sm:p-3 rounded-lg border text-center transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                         statusColors[room.status]
                       } ${
                         selectedRoomId === room.id ? "ring-2 ring-primary" : ""
                       }`}
                     >
                       <p className="text-sm font-bold">{room.number}</p>
-                      <p className="text-[10px] text-muted-foreground truncate">
+                      <p className="text-xs text-muted-foreground truncate">
                         {room.type}
-                      </p>
-                      <p className="text-[10px] capitalize text-muted-foreground">
-                        {room.status}
                       </p>
                     </button>
                   ))}

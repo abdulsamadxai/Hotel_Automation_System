@@ -46,9 +46,18 @@ export async function getDashboardSummary(hotelId: string | null) {
   const anchorKey = dayKey(anchor);
 
   const totalRooms = rooms.length;
-  const occupiedRooms = rooms.filter((r) => r.status === 'occupied').length;
+  // Headline occupancy uses the SAME basis as occupancy_trend (bookings
+  // staying on the day), so the KPI equals the trend's last point. The old
+  // room-status basis contradicted the chart (e.g. 30% vs 0%).
+  const stayingOnAnchor = bookings.filter((b) => {
+    if (b.status === 'cancelled') return false;
+    const inKey = dayKey(b.check_in);
+    const outKey = dayKey(b.check_out);
+    if (!inKey || !outKey) return false;
+    return inKey <= anchorKey && anchorKey < outKey;
+  }).length;
   const occupancyRate =
-    totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0;
+    totalRooms > 0 ? Math.round((stayingOnAnchor / totalRooms) * 100) : 0;
 
   const arrivals = bookings.filter(
     (b) => b.status !== 'cancelled' && dayKey(b.check_in) === anchorKey,

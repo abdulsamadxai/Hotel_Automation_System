@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '../lib/prisma.js';
 import { ApiError } from '../lib/errors.js';
 import { asyncHandler, ok, parseBody } from '../lib/http.js';
-import { changePasswordSchema, userPatchSchema } from '../validation/schemas.js';
+import { changePasswordSchema, createUserSchema, userPatchSchema } from '../validation/schemas.js';
 import { publicUser } from '../lib/serialize.js';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 import { requireRole, resolveScope } from '../middleware/rbac.js';
@@ -20,6 +20,69 @@ usersRouter.get(
       orderBy: { created_at: 'asc' },
     });
     ok(res, users.map(publicUser));
+  }),
+);
+
+/**
+ * POST /api/users — super_admin only. Creates a login user with any role,
+ * including owner (which self-registration deliberately forbids). For
+ * manager / housekeeping / staff a linked StaffMember record is created
+ * too, mirroring signup, so their hotel-code login and roster entry work.
+ * hotel_id is required for every role except super_admin and must be an
+ * existing hotel.
+ */
+usersRouter.post(
+  '/',
+  requireRole('super_admin'),
+  asyncHandler(async (req, res) => {
+    const body = parseBody(createUserSchema, req.body);
+    let hotelId: string | null = null;
+    if (body.role !== 'super_admin') {
+      if (!body.hotel_id) {
+        throw new ApiError(400, 'hotel_id is required for this role');
+      }
+      const hotel = await prisma.hotel.findUnique({
+        where: { id: body.hotel_id },
+      });
+      if (!hotel) throw new ApiError(404, 'Hotel not found');
+      hotelId = hotel.id;
+    }
+    const existing = await prisma.user.findUnique({
+      where: { email: body.email },
+    });
+    if (existing) throw new ApiError(409, 'User already exists');
+    const password_hash = await bcrypt.hash(body.password, 10);
+    const user = await prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          email: body.email,
+          password_hash,
+          full_name: body.full_name,
+          role: body.role,
+          hotel_id: hotelId,
+        },
+      });
+      if (
+        hotelId &&
+        (body.role === 'manager' ||
+          body.role === 'housekeeping' ||
+          body.role === 'staff')
+      ) {
+        await tx.staffMember.create({
+          data: {
+            hotel_id: hotelId,
+            user_id: created.id,
+            full_name: created.full_name,
+            email: created.email,
+            phone: null,
+            role: body.role,
+            status: 'active',
+          },
+        });
+      }
+      return created;
+    });
+    ok(res, { user: publicUser(user) }, 201);
   }),
 );
 

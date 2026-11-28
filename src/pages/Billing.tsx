@@ -10,6 +10,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+  TableNumeric,
   TableRow,
 } from "@/components/ui/table";
 import {
@@ -274,7 +275,7 @@ export default function Billing() {
                       <div className="bg-muted/50 p-4 rounded-md border">
                         {formData.booking_id ? (
                           <div className="flex items-start gap-3">
-                            <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
+                            <CheckCircle2 className="h-5 w-5 text-status-success mt-0.5" />
                             <div>
                               <p className="font-semibold text-sm">Active Booking Found</p>
                               <p className="text-sm text-muted-foreground">
@@ -287,7 +288,7 @@ export default function Billing() {
                           </div>
                         ) : (
                           <div className="flex items-start gap-3">
-                            <AlertCircle className="h-5 w-5 text-orange-600 mt-0.5" />
+                            <AlertCircle className="h-5 w-5 text-status-warning mt-0.5" />
                             <div>
                               <p className="font-semibold text-sm">No Active Booking</p>
                               <p className="text-sm text-muted-foreground">
@@ -361,7 +362,7 @@ export default function Billing() {
                                 />
                               </TableCell>
                               <TableCell>
-                                <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => handleRemoveLineItem(idx, formData.line_items, (l) => setFormData({ ...formData, line_items: l }))}>
+                                <Button size="icon-sm" variant="ghost" className="text-destructive" onClick={() => handleRemoveLineItem(idx, formData.line_items, (l) => setFormData({ ...formData, line_items: l }))}>
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
                               </TableCell>
@@ -403,13 +404,13 @@ export default function Billing() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card>
             <CardContent className="p-4 flex flex-col justify-center">
               <span className="text-muted-foreground text-sm">
                 Total Collected
               </span>
-              <span className="text-2xl font-bold text-green-600">{formatAndConvert(totalRevenue, currency)}</span>
+              <span className="text-2xl font-bold text-status-success">{formatAndConvert(totalRevenue, currency)}</span>
             </CardContent>
           </Card>
           <Card>
@@ -417,7 +418,7 @@ export default function Billing() {
               <span className="text-muted-foreground text-sm">
                 Total Pending
               </span>
-              <span className="text-2xl font-bold text-orange-600">{formatAndConvert(pendingRevenue, currency)}</span>
+              <span className="text-2xl font-bold text-status-warning">{formatAndConvert(pendingRevenue, currency)}</span>
             </CardContent>
           </Card>
         </div>
@@ -446,19 +447,19 @@ export default function Billing() {
                   >
                     <TableCell className="font-mono">{inv.invoice_number}</TableCell>
                     <TableCell>{inv.guest?.name || 'Unknown'}</TableCell>
-                    <TableCell className="text-right">{formatAndConvert(inv.total, currency)}</TableCell>
+                    <TableNumeric>{formatAndConvert(inv.total, currency)}</TableNumeric>
 
                     {/* New: Showing Amount Paid */}
                     <TableCell className="text-center text-muted-foreground">
-                      {inv.amount_paid > 0 ? <span className="text-green-600 font-medium">{formatAndConvert(inv.amount_paid, currency)}</span> : '-'}
+                      {inv.amount_paid > 0 ? <span className="text-status-success font-medium">{formatAndConvert(inv.amount_paid, currency)}</span> : '-'}
                     </TableCell>
 
                     <TableCell>{getStatusBadge(inv)}</TableCell>
                     <TableCell>
                       <Button
-                        size="icon"
+                        size="icon-sm"
                         variant="ghost"
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        className="text-muted-foreground hover:text-destructive"
                         onClick={(e) => handleDeleteInvoice(inv.id, e)}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -496,7 +497,6 @@ export default function Billing() {
                         line_items: selectedInvoice.line_items ?? [],
                         amount: subtotal,
                         tax,
-                        total: subtotal + tax
                       }
                     });
                     setSelectedInvoice(null);
@@ -514,13 +514,13 @@ export default function Billing() {
                   </div>
                   {selectedInvoice.status !== 'paid' && (
                     <Button size="sm" variant="default" onClick={() => {
-                      // Mark as fully paid -> set Amount Paid = Total Amount
+                      // Mark as fully paid — the server settles the
+                      // remaining balance via POST /:id/pay; amount_paid /
+                      // paid_date are server-computed, never sent.
                       updateInvoice.mutate({
                         id: selectedInvoice.id,
                         updates: {
                           status: 'paid',
-                          amount_paid: selectedInvoice.total,
-                          paid_date: new Date().toISOString()
                         }
                       });
                       setSelectedInvoice(null);
@@ -571,7 +571,7 @@ export default function Billing() {
                             />
                           </TableCell>
                           <TableCell>
-                            <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => handleRemoveLineItem(idx, selectedInvoice.line_items, (l) => setSelectedInvoice({ ...selectedInvoice, line_items: l }))}>
+                            <Button size="icon-sm" variant="ghost" className="text-destructive" onClick={() => handleRemoveLineItem(idx, selectedInvoice.line_items, (l) => setSelectedInvoice({ ...selectedInvoice, line_items: l }))}>
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </TableCell>
@@ -595,7 +595,7 @@ export default function Billing() {
                     <span>{formatAndConvert(calculateTotal(selectedInvoice.line_items) + calculateTax(calculateTotal(selectedInvoice.line_items)), currency)}</span>
                   </div>
                   {selectedInvoice.amount_paid > 0 && (
-                    <div className="flex justify-between items-center text-green-600">
+                    <div className="flex justify-between items-center text-status-success">
                       <span>Paid (Advance/Deposit)</span>
                       <span>- {formatAndConvert(selectedInvoice.amount_paid, currency)}</span>
                     </div>
@@ -618,6 +618,8 @@ export default function Billing() {
               <DialogTitle>Invoice Preview</DialogTitle>
             </DialogHeader>
             {selectedInvoice && (
+              // Print invoice — intentionally plain white/black print colours
+              // (bg-white, text-gray-*); do NOT "fix" these to theme tokens.
               <div id="printable-invoice" className="bg-white text-black p-8 rounded-lg shadow-inner">
                 <div className="flex justify-between items-start border-b pb-6 mb-6">
                   <div>
@@ -630,7 +632,7 @@ export default function Billing() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-8 mb-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8 mb-8">
                   <div>
                     <h4 className="text-xs font-bold uppercase text-gray-400 mb-2">Bill To</h4>
                     <p className="font-bold text-lg">{selectedInvoice.guest?.name}</p>
@@ -646,24 +648,26 @@ export default function Billing() {
                   </div>
                 </div>
 
-                <table className="w-full mb-8">
-                  <thead>
-                    <tr className="border-b-2 border-gray-100 italic">
-                      <th className="text-left py-3 font-semibold">Description</th>
-                      <th className="text-center py-3 font-semibold w-20">Qty</th>
-                      <th className="text-right py-3 font-semibold w-32">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(selectedInvoice.line_items || []).map((item, idx) => (
-                      <tr key={idx} className="border-b border-gray-50">
-                        <td className="py-4 text-gray-800">{item.description}</td>
-                        <td className="py-4 text-center text-gray-600">{item.quantity}</td>
-                        <td className="py-4 text-right font-medium">{formatAndConvert(item.amount, currency)}</td>
+                <div className="overflow-x-auto mb-8">
+                  <table className="w-full min-w-[480px]">
+                    <thead>
+                      <tr className="border-b-2 border-gray-100 italic">
+                        <th className="text-left py-3 font-semibold">Description</th>
+                        <th className="text-center py-3 font-semibold w-20">Qty</th>
+                        <th className="text-right py-3 font-semibold w-32">Amount</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {(selectedInvoice.line_items || []).map((item, idx) => (
+                        <tr key={idx} className="border-b border-gray-50">
+                          <td className="py-4 text-gray-800">{item.description}</td>
+                          <td className="py-4 text-center text-gray-600">{item.quantity}</td>
+                          <td className="py-4 text-right font-medium">{formatAndConvert(item.amount, currency)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
 
                 <div className="flex justify-end">
                   <div className="w-64 space-y-3">

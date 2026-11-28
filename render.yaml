@@ -3,9 +3,12 @@
 # Render creates the database + web service below. This file creates no
 # resources by itself — it only describes them.
 #
-# After the first deploy, run the seed once from the web service's Shell:
-#   npm run seed
-# (with SEED_DEMO_PASSWORD set in the service's Environment first).
+# After the first deploy, the seed runs automatically as part of the build
+# (the free plan has no Shell, so the seed cannot be run by hand).
+# It uses SEED_DEMO_PASSWORD from the service's Environment — set that
+# variable in the dashboard before deploying. The seed is idempotent
+# (upserts), so re-running it on later deploys is safe and re-applies
+# the demo password if it changed.
 
 services:
   - type: web
@@ -13,7 +16,7 @@ services:
     runtime: node
     plan: free
     rootDir: backend
-    buildCommand: npm install --include=dev && npx prisma migrate deploy && npm run build
+    buildCommand: npm install --include=dev && npx prisma migrate deploy && npm run build && npm run seed
     startCommand: npm start
     envVars:
       - key: NODE_ENV

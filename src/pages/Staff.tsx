@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select";
 import { Plus, Clock, User, Users, Loader2, Trash2, Save } from "lucide-react";
 import { useStaff, useCreateStaff, useUpdateStaff, useUpdateStaffStatus, useDeleteStaff, StaffRole, StaffStatus, type StaffMember } from "@/hooks/useStaff";
-import { useUpdatePassword } from "@/hooks/useAuth";
+import { useAuth, useUpdatePassword } from "@/hooks/useAuth";
 import { useHousekeepingTasks } from "@/hooks/useHousekeeping";
 import { format } from "date-fns";
 
@@ -42,6 +42,7 @@ const statusColors: Record<StaffStatus, string> = {
 };
 
 export default function Staff() {
+  const { user } = useAuth();
   const { data: staff = [], isLoading } = useStaff();
   const { data: tasks = [] } = useHousekeepingTasks();
   const createStaff = useCreateStaff();
@@ -59,10 +60,17 @@ export default function Staff() {
     full_name: "",
     email: "",
     password: "",
+    currentPassword: "",
     phone: "",
     role: "housekeeping" as StaffRole,
     shift: "morning",
   });
+
+  // The record being edited belongs to the current user when its linked
+  // login user is the current user — self-service password changes
+  // require the current password server-side.
+  const isEditingSelf = !!editingStaff?.user_id && editingStaff.user_id === user?.id;
+  const needsCurrentPassword = isEditingSelf && !!formData.password && !formData.currentPassword;
 
   const onDutyCount = staff.filter((s) => s.status === "on_duty").length;
   const pendingTasks = tasks.filter((t) => t.status === "pending").length;
@@ -75,13 +83,14 @@ export default function Staff() {
         full_name: member.full_name,
         email: member.email || "",
         password: "", // Don't show existing password
+        currentPassword: "",
         phone: member.phone || "",
         role: member.role,
         shift: member.shift || "morning",
       });
     } else {
       setEditingStaff(null);
-      setFormData({ full_name: "", email: "", password: "", phone: "", role: "housekeeping", shift: "morning" });
+      setFormData({ full_name: "", email: "", password: "", currentPassword: "", phone: "", role: "housekeeping", shift: "morning" });
     }
     setIsDialogOpen(true);
   };
@@ -98,7 +107,13 @@ export default function Staff() {
       });
       // Password changes apply to the LOGIN user, not the staff record.
       if (formData.password && editingStaff.user_id) {
-        await updatePassword.mutateAsync({ userId: editingStaff.user_id, newPassword: formData.password });
+        await updatePassword.mutateAsync({
+          userId: editingStaff.user_id,
+          newPassword: formData.password,
+          // Self-service: the server requires the current password.
+          // Admin-resetting-someone-else sends none.
+          currentPassword: isEditingSelf ? formData.currentPassword : undefined,
+        });
       }
     } else {
       await createStaff.mutateAsync({
@@ -111,7 +126,7 @@ export default function Staff() {
     }
     setIsDialogOpen(false);
     setEditingStaff(null);
-    setFormData({ full_name: "", email: "", password: "", phone: "", role: "housekeeping", shift: "morning" });
+    setFormData({ full_name: "", email: "", password: "", currentPassword: "", phone: "", role: "housekeeping", shift: "morning" });
   };
 
   const handleStatusChange = async (staffId: string, status: StaffStatus) => {
@@ -174,7 +189,7 @@ export default function Staff() {
                       placeholder="Full name"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Email *</Label>
                       <Input
@@ -206,6 +221,20 @@ export default function Staff() {
                       </div>
                     )}
                   </div>
+                  {isEditingSelf && (
+                    <div className="space-y-2">
+                      <Label>Current Password *</Label>
+                      <Input
+                        type="password"
+                        value={formData.currentPassword}
+                        onChange={(e) => setFormData({ ...formData, currentPassword: e.target.value })}
+                        placeholder="Your current password"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Required to change your own login password.
+                      </p>
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <Label>Phone</Label>
                     <Input
@@ -214,7 +243,7 @@ export default function Staff() {
                       placeholder="+1 234 567 8900"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Role</Label>
                       <Select
@@ -251,7 +280,7 @@ export default function Staff() {
                   </div>
                   <Button
                     onClick={handleSaveStaff}
-                    disabled={createStaff.isPending || updateStaff.isPending || !formData.full_name}
+                    disabled={createStaff.isPending || updateStaff.isPending || updatePassword.isPending || !formData.full_name || needsCurrentPassword}
                     className="w-full"
                   >
                     {createStaff.isPending || updateStaff.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingStaff ? "Update Staff" : "Add Staff Member")}
@@ -263,7 +292,7 @@ export default function Staff() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           <div className="glass-card p-4">
             <p className="text-2xl font-bold text-status-success">{onDutyCount}</p>
             <p className="text-sm text-muted-foreground">On Duty</p>

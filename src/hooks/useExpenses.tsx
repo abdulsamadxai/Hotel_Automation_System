@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, hotelParams } from "@/lib/api";
+import { api, hotelParams, writeHotelParams } from "@/lib/api";
 import type { Expense as CanonicalExpense } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -26,10 +26,14 @@ export function useExpenses(hotelId?: string) {
 
 export function useCreateExpense() {
     const queryClient = useQueryClient();
+    const { role, hotelId } = useAuth();
 
     return useMutation({
         mutationFn: async (expense: Omit<Expense, "id" | "hotel_id" | "created_at">) => {
-            return await api.post<Expense>("/api/expenses", expense);
+            return await api.post<Expense>("/api/expenses", {
+                ...expense,
+                ...writeHotelParams(role, hotelId),
+            });
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["expenses"] });

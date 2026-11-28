@@ -46,18 +46,14 @@ export async function getDashboardSummary(hotelId: string | null) {
   const anchorKey = dayKey(anchor);
 
   const totalRooms = rooms.length;
-  // Headline occupancy uses the SAME basis as occupancy_trend (bookings
-  // staying on the day), so the KPI equals the trend's last point. The old
-  // room-status basis contradicted the chart (e.g. 30% vs 0%).
-  const stayingOnAnchor = bookings.filter((b) => {
-    if (b.status === 'cancelled') return false;
-    const inKey = dayKey(b.check_in);
-    const outKey = dayKey(b.check_out);
-    if (!inKey || !outKey) return false;
-    return inKey <= anchorKey && anchorKey < outKey;
-  }).length;
+  // Headline occupancy is room-status based (rooms marked occupied right
+  // now / total rooms). The card's subtitle counts rooms ("3 of 10 rooms
+  // occupied") and the room grid below shows the same rooms, so a
+  // booking-date basis contradicted both: 0% while 3 rooms show Occupied,
+  // whenever a checked-in stay's dates no longer cover the anchor day.
+  const occupiedRooms = rooms.filter((r) => r.status === 'occupied').length;
   const occupancyRate =
-    totalRooms > 0 ? Math.round((stayingOnAnchor / totalRooms) * 100) : 0;
+    totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0;
 
   const arrivals = bookings.filter(
     (b) => b.status !== 'cancelled' && dayKey(b.check_in) === anchorKey,
@@ -108,6 +104,12 @@ export async function getDashboardSummary(hotelId: string | null) {
 
   const occupancyTrend = daysEndingOn(anchor, 14).map((day) => {
     const key = dayKey(day);
+    // History is booking-based (the only history we have). The last point
+    // is the anchor day, so it uses the same room-based rate as the
+    // headline KPI, keeping the KPI equal to the trend's last point.
+    if (key === anchorKey) {
+      return { date: key, rate: occupancyRate };
+    }
     const staying = bookings.filter((b) => {
       if (b.status === 'cancelled') return false;
       const inKey = dayKey(b.check_in);

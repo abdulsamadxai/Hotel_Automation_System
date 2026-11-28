@@ -107,7 +107,7 @@ export default function Settings() {
           <TabsContent value="hotel" className="space-y-6">
             {(role === 'owner' || role === 'super_admin') && <HotelCodeDisplay />}
 
-            <div className="glass-card p-6 space-y-6 border border-white/5">
+            <div className="glass-card p-6 space-y-6 border border-border">
               {/* Theme Settings */}
               <div>
                 <h3 className="text-lg font-semibold mb-4">Appearance</h3>
@@ -122,7 +122,7 @@ export default function Settings() {
                 </div>
               </div>
 
-              <div className="border-t border-white/5 pt-6">
+              <div className="border-t border-border pt-6">
                 <h3 className="text-lg font-semibold mb-4">Currency</h3>
                 <div className="space-y-4">
                   <div>
@@ -135,7 +135,7 @@ export default function Settings() {
                 </div>
               </div>
 
-              <div className="border-t border-white/5 pt-6">
+              <div className="border-t border-border pt-6">
                 <h3 className="text-lg font-semibold mb-6">Hotel Branding</h3>
                 <div className="flex flex-col md:flex-row gap-8 items-start">
                   <div className="relative group">
@@ -145,7 +145,7 @@ export default function Settings() {
                       ) : (
                         <div className="flex flex-col items-center gap-2 text-muted-foreground">
                           <ImageIcon className="h-8 w-8" />
-                          <span className="text-[10px] font-medium">No Logo</span>
+                          <span className="text-xs font-medium">No Logo</span>
                         </div>
                       )}
                     </div>
@@ -220,7 +220,7 @@ export default function Settings() {
                             </Button>
                           </div>
                         </div>
-                        <p className="text-[10px] text-muted-foreground italic">Required for your Managers and Housekeeping staff to log in.</p>
+                        <p className="text-xs text-muted-foreground italic">Required for your Managers and Housekeeping staff to log in.</p>
                       </div>
                     )}
                   </div>
@@ -228,7 +228,7 @@ export default function Settings() {
               </div>
 
               {(role === 'owner' || role === 'super_admin') && (
-                <div className="flex justify-end pt-4 border-t border-white/5">
+                <div className="flex justify-end pt-4 border-t border-border">
                   <Button
                     className="shadow-lg hover:shadow-primary/20 transition-all gap-2"
                     onClick={handleSave}
@@ -293,7 +293,7 @@ export default function Settings() {
                   { label: "Task escalation", description: "Escalate overdue tasks to managers", enabled: true },
                   { label: "VIP notifications", description: "Alert staff for VIP guest activities", enabled: true },
                 ].map((item, index) => (
-                  <div key={index} className="flex items-center justify-between py-3 border-b border-white/5 last:border-0">
+                  <div key={index} className="flex items-center justify-between py-3 border-b border-border last:border-0">
                     <div>
                       <p className="font-medium">{item.label}</p>
                       <p className="text-sm text-muted-foreground">{item.description}</p>
@@ -316,7 +316,7 @@ export default function Settings() {
                   { label: "Audit logging", description: "Log all user actions for review", enabled: true },
                   { label: "IP restriction", description: "Limit access to specific IP addresses", enabled: false },
                 ].map((item, index) => (
-                  <div key={index} className="flex items-center justify-between py-3 border-b border-white/5 last:border-0">
+                  <div key={index} className="flex items-center justify-between py-3 border-b border-border last:border-0">
                     <div>
                       <p className="font-medium">{item.label}</p>
                       <p className="text-sm text-muted-foreground">{item.description}</p>

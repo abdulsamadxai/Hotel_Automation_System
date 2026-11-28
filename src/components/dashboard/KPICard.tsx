@@ -45,10 +45,10 @@ export function KPICard({
         )}
       </div>
       <div className="space-y-1">
-        <p className="text-2xl font-bold tracking-tight">{value}</p>
-        <p className="text-sm text-muted-foreground">{title}</p>
+        <p className="text-3xl font-bold tracking-tight tabular-nums">{value}</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{title}</p>
         {subtitle && (
-          <p className="text-xs text-muted-foreground/70">{subtitle}</p>
+          <p className="text-xs text-muted-foreground">{subtitle}</p>
         )}
       </div>
     </div>

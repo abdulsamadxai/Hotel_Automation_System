@@ -92,6 +92,10 @@ export default function Dashboard() {
   const isPropertyView =
     role === "owner" || role === "manager" || (role === "super_admin" && !!selectedHotelId);
   const canSeeRevenue = isPropertyView;
+  // Manager sees only today's revenue. The full revenue picture (last
+  // 7 days, this month, this year — and the 30-day revenue trend chart)
+  // is for the owner and super-admin only.
+  const canSeeFullRevenue = role === 'owner' || role === 'super_admin';
   const canCheckInOut = role === "owner" || role === "manager" || role === "super_admin";
   const canManageRoom = canCheckInOut;
   const canBook = canCheckInOut;
@@ -177,6 +181,7 @@ export default function Dashboard() {
       isSuperAdminGlobal={isSuperAdminGlobal}
       isPropertyView={isPropertyView}
       canSeeRevenue={canSeeRevenue}
+      canSeeFullRevenue={canSeeFullRevenue}
       canCheckInOut={canCheckInOut}
       canManageRoom={canManageRoom}
       canBook={canBook}
@@ -220,6 +225,7 @@ interface DashboardContentProps {
   isSuperAdminGlobal: boolean;
   isPropertyView: boolean;
   canSeeRevenue: boolean;
+  canSeeFullRevenue: boolean;
   canCheckInOut: boolean;
   canManageRoom: boolean;
   canBook: boolean;
@@ -253,6 +259,7 @@ function DashboardContent(props: DashboardContentProps) {
     isSuperAdminGlobal,
     isPropertyView,
     canSeeRevenue,
+    canSeeFullRevenue,
     canCheckInOut,
     canManageRoom,
     canBook,
@@ -604,15 +611,21 @@ function DashboardContent(props: DashboardContentProps) {
               />
             </div>
 
-            {/* Revenue — owner, manager and super-admin on a hotel */}
+            {/* Revenue — owner, manager and super-admin on a hotel.
+                Managers see only today's revenue; owners and super-admins
+                see the full picture. */}
             {canSeeRevenue && (
               <section aria-label="Revenue">
                 <h2 className="text-base font-semibold mb-3">Revenue</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <KPICard title="Revenue Today" value={formatAndConvert(revenueToday, currency)} icon={Banknote} iconColor="text-status-success" subtitle="Collected today" />
-                  <KPICard title="Revenue · Last 7 Days" value={formatAndConvert(revenue7d, currency)} icon={TrendingUp} iconColor="text-status-success" subtitle="Collected in the last 7 days" />
-                  <KPICard title="Revenue · This Month" value={formatAndConvert(revenueMonth, currency)} icon={CalendarDays} iconColor="text-status-success" subtitle="Collected this calendar month" />
-                  <KPICard title="Revenue · This Year" value={formatAndConvert(revenueYear, currency)} icon={PiggyBank} iconColor="text-status-success" subtitle="Collected this calendar year" />
+                  {canSeeFullRevenue && (
+                    <>
+                      <KPICard title="Revenue · Last 7 Days" value={formatAndConvert(revenue7d, currency)} icon={TrendingUp} iconColor="text-status-success" subtitle="Collected in the last 7 days" />
+                      <KPICard title="Revenue · This Month" value={formatAndConvert(revenueMonth, currency)} icon={CalendarDays} iconColor="text-status-success" subtitle="Collected this calendar month" />
+                      <KPICard title="Revenue · This Year" value={formatAndConvert(revenueYear, currency)} icon={PiggyBank} iconColor="text-status-success" subtitle="Collected this calendar year" />
+                    </>
+                  )}
                 </div>
               </section>
             )}
@@ -642,6 +655,7 @@ function DashboardContent(props: DashboardContentProps) {
               currency={currency}
               occupancyTrend={summary?.occupancy_trend}
               revenueTrend={summary?.revenue_trend}
+              showRevenue={canSeeFullRevenue}
             />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

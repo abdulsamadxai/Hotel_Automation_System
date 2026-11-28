@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, hotelParams } from "@/lib/api";
+import { api, hotelParams, writeHotelParams } from "@/lib/api";
 import type { Room as CanonicalRoom, RoomCreateInput, RoomStatus, RoomType } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -39,10 +39,14 @@ export function useRoom(id: string) {
 
 export function useCreateRoom() {
   const queryClient = useQueryClient();
+  const { role, hotelId } = useAuth();
 
   return useMutation({
     mutationFn: async (room: RoomCreateInput) => {
-      return await api.post<Room>("/api/rooms", room);
+      return await api.post<Room>("/api/rooms", {
+        ...room,
+        ...writeHotelParams(role, hotelId),
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["rooms"] });

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { fetchLiveRates, loadCachedRates } from '@/utils/currency';
 
 type Theme = 'dark' | 'light';
 type Currency = 'USD' | 'PKR' | 'EUR' | 'GBP' | 'SAR' | 'AED' | 'OMR';
@@ -47,6 +48,22 @@ export function AppSettingsProvider({ children }: { children: React.ReactNode })
         } else {
             document.documentElement.classList.remove('dark');
         }
+    }, []);
+
+    // Live exchange rates: use the cached copy first (if fresh), then
+    // refresh in the background. Bumping ratesVersion re-renders the app
+    // so amounts re-convert at the live rate. Any failure is silent —
+    // the hardcoded fallback rates in utils/currency.ts keep working.
+    const [, setRatesVersion] = useState(0);
+    useEffect(() => {
+        let cancelled = false;
+        if (loadCachedRates()) setRatesVersion((v) => v + 1);
+        fetchLiveRates().then((ok) => {
+            if (ok && !cancelled) setRatesVersion((v) => v + 1);
+        });
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     return (

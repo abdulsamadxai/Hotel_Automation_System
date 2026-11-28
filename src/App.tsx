@@ -24,6 +24,7 @@ import Messages from "./pages/Messages";
 import Alerts from "./pages/Alerts";
 import Logs from "./pages/Logs";
 import Settings from "./pages/Settings";
+import MyTasks from "./pages/MyTasks";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -62,7 +63,17 @@ const App = () => (
                   <Guests />
                 </ProtectedRoute>
               } />
-              <Route path="/housekeeping" element={<ProtectedRoute><Housekeeping /></ProtectedRoute>} />
+              <Route path="/housekeeping" element={
+                <ProtectedRoute allowedRoles={['owner', 'manager', 'super_admin', 'housekeeping']}>
+                  <Housekeeping />
+                </ProtectedRoute>
+              } />
+              {/* Staff-only task view, like housekeeping's */}
+              <Route path="/my-tasks" element={
+                <ProtectedRoute allowedRoles={['staff']}>
+                  <MyTasks />
+                </ProtectedRoute>
+              } />
               <Route path="/staff" element={
                 <ProtectedRoute allowedRoles={['owner', 'manager', 'super_admin']}>
                   <Staff />

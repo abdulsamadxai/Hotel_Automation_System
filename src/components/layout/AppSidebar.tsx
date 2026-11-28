@@ -174,8 +174,11 @@ export function AppSidebar() {
 
   ].filter(Boolean);
 
-  // STRICT FILTER: If housekeeping, force only operations items
-  if (role === 'housekeeping') {
+  // STRICT FILTER: housekeeping and staff see only their own task view —
+  // never the full menu. The header and link differ per role; everything
+  // else about this sidebar is identical for both.
+  if (role === 'housekeeping' || role === 'staff') {
+    const isStaff = role === 'staff';
     return (
       <Sidebar collapsible="icon" className="border-r border-sidebar-border">
         <SidebarHeader className="p-4">
@@ -186,7 +189,7 @@ export function AppSidebar() {
             </div>
             {!isCollapsed && (
               <div className="flex flex-col">
-                <span className="font-bold text-foreground">Housekeeping</span>
+                <span className="font-bold text-foreground">{isStaff ? "Staff" : "Housekeeping"}</span>
                 <span className="text-xs text-muted-foreground uppercase">Task View</span>
               </div>
             )}
@@ -195,7 +198,7 @@ export function AppSidebar() {
         <SidebarContent className="px-2">
           <MenuGroup
             label="Tasks"
-            items={[{ title: "My Tasks", url: "/housekeeping", iconComp: <ClipboardList className="h-4 w-4" /> }]}
+            items={[{ title: "My Tasks", url: isStaff ? "/my-tasks" : "/housekeeping", iconComp: <ClipboardList className="h-4 w-4" /> }]}
           />
         </SidebarContent>
         <SidebarFooter className="p-4">

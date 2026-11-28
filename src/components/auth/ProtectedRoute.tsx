@@ -20,13 +20,24 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
 
   // Check role-based access
   if (allowedRoles && role && !allowedRoles.includes(role)) {
-    const fallback = role === 'housekeeping' ? '/housekeeping' : '/';
+    const fallback =
+      role === 'housekeeping'
+        ? '/housekeeping'
+        : role === 'staff'
+          ? '/my-tasks'
+          : '/';
     return <Navigate to={fallback} replace />;
   }
 
   // Strict: Housekeeping should not land on / (Dashboard)
   if (role === 'housekeeping' && window.location.pathname === '/') {
     return <Navigate to="/housekeeping" replace />;
+  }
+
+  // Strict: Staff should not land on / (Dashboard) either — they have
+  // their own task view, like housekeeping.
+  if (role === 'staff' && window.location.pathname === '/') {
+    return <Navigate to="/my-tasks" replace />;
   }
 
   return <>{children}</>;

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, hotelParams } from "@/lib/api";
+import { api, hotelParams, writeHotelParams } from "@/lib/api";
 import type { StaffCreateInput, StaffMember as CanonicalStaff, StaffRole, StaffStatus, StaffWithJoins } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -40,12 +40,16 @@ export function useGlobalStaff() {
 
 export function useCreateStaff() {
   const queryClient = useQueryClient();
+  const { role, hotelId } = useAuth();
 
   return useMutation({
     // Staff record creation only — it creates NO login user and NO password.
     // A login account is created via sign-up (auth), not from this form.
     mutationFn: async (staff: StaffCreateInput) => {
-      return await api.post<StaffMember>("/api/staff", staff);
+      return await api.post<StaffMember>("/api/staff", {
+        ...staff,
+        ...writeHotelParams(role, hotelId),
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff"] });

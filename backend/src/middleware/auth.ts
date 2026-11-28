@@ -16,23 +16,32 @@ export interface AuthRequest extends Request {
   user?: AuthUserPayload;
 }
 
+/** Known placeholder / publicly-known secrets that must never sign tokens. */
+const KNOWN_WEAK_SECRETS = new Set([
+  'change-me-in-production',
+  'demo-password-change-me',
+  'changeme',
+  'secret',
+  'password',
+  'dev-only-insecure-secret-change-me',
+]);
+
 /**
- * JWT secret. Fails loudly at boot in production when unset; in
- * development a clearly-marked insecure fallback is used so the demo can
- * boot without a secret on disk.
+ * JWT secret. Fails loudly at boot when unset or set to a known placeholder
+ * — a publicly-known secret would let anyone forge tokens, so there is no
+ * development fallback. Set a long random JWT_SECRET in backend/.env.
  */
 export function getJwtSecret(): string {
-  const secret = process.env.JWT_SECRET;
+  const secret = process.env.JWT_SECRET?.trim();
   if (!secret) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error(
-        'JWT_SECRET is not set. Refusing to start in production without one.',
-      );
-    }
-    console.warn(
-      '[auth] JWT_SECRET is not set — using an insecure development secret. Never use this in production.',
+    throw new Error(
+      'JWT_SECRET is not set. Refusing to start without one — set a long random value in backend/.env.',
     );
-    return 'dev-only-insecure-secret-change-me';
+  }
+  if (KNOWN_WEAK_SECRETS.has(secret.toLowerCase())) {
+    throw new Error(
+      'JWT_SECRET is set to a known placeholder value. Refusing to start — set a long random value in backend/.env.',
+    );
   }
   return secret;
 }

@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { ShieldCheck, Loader2, Mail, Lock } from 'lucide-react';
+import { AuthLayout } from '@/components/auth/AuthLayout';
 
 /**
  * Separate admin login, like /admin/login on the Cyber Nexa site. Only the
@@ -60,19 +61,13 @@ export default function AdminLogin() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-8">
-        {/* Logo */}
-        <div className="text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 text-primary mb-4">
-            <ShieldCheck className="h-8 w-8" />
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight">Admin Dashboard</h1>
-          <p className="text-muted-foreground mt-2">Hotel Autopilot ONE — system administration</p>
-        </div>
-
+    <AuthLayout
+      title="Admin Dashboard"
+      subtitle="Hotel Autopilot ONE — system administration"
+      footer="Protected by enterprise-grade security"
+      icon={<ShieldCheck className="h-8 w-8" />}
+    >
         {/* Form */}
-        <div className="glass-card p-8 border border-border mx-auto">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="email">Admin Email</Label>
@@ -127,12 +122,6 @@ export default function AdminLogin() {
               ← Back to hotel sign in
             </Link>
           </div>
-        </div>
-
-        <p className="text-center text-xs text-muted-foreground">
-          Protected by enterprise-grade security
-        </p>
-      </div>
-    </div>
+    </AuthLayout>
   );
 }

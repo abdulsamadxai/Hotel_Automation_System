@@ -85,7 +85,7 @@ export function ArrivalsDeparturesPanel({
           {canCheckInOut && canAct && (
             <Button
               size="sm"
-              className="h-7"
+              className="h-10"
               disabled={pendingId === booking.id}
               onClick={() =>
                 runStatus(booking.id, isArrival ? "checked_in" : "checked_out")
@@ -226,7 +226,7 @@ export function HousekeepingQueuePanel({ tasks, title, showViewAll }: Housekeepi
                   <Button
                     size="sm"
                     variant="outline"
-                    className="h-7"
+                    className="h-10"
                     disabled={pendingId === task.id}
                     onClick={() => runStatus(task.id, "in_progress")}
                   >
@@ -235,7 +235,7 @@ export function HousekeepingQueuePanel({ tasks, title, showViewAll }: Housekeepi
                 )}
                 <Button
                   size="sm"
-                  className="h-7"
+                  className="h-10"
                   disabled={pendingId === task.id}
                   onClick={() => runStatus(task.id, "completed")}
                 >
@@ -310,7 +310,7 @@ export function AlertsPanel({ notifications }: AlertsPanelProps) {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 text-xs shrink-0"
+                className="h-10 text-xs shrink-0"
                 disabled={pendingId === notification.id}
                 onClick={() => {
                   setPendingId(notification.id);

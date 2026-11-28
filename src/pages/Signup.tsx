@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Hotel, Loader2, Mail, Lock, User, Info } from 'lucide-react';
+import { Loader2, Mail, Lock, User, Info } from 'lucide-react';
+import { AuthLayout } from '@/components/auth/AuthLayout';
 import {
   Select,
   SelectContent,
@@ -103,22 +104,12 @@ export default function Signup() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-8">
-        {/* Logo */}
-        <div className="text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 text-primary mb-4">
-            <Hotel className="h-8 w-8" />
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight">Sign Up</h1>
-          <p className="text-muted-foreground mt-2">
-            Create a staff account for your hotel. Owner accounts are created
-            by an administrator — they cannot be self-registered here.
-          </p>
-        </div>
-
+    <AuthLayout
+      title="Sign Up"
+      subtitle="Create a staff account for your hotel. Owner accounts are created by an administrator — they cannot be self-registered here."
+      footer="Join the network of enterprise hotels powered by Autopilot ONE"
+    >
         {/* Form */}
-        <div className="glass-card p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="rounded-lg bg-muted/40 border border-border p-3 flex items-start gap-2 text-xs text-muted-foreground">
               <Info className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
@@ -235,12 +226,6 @@ export default function Signup() {
               Sign in
             </Link>
           </div>
-        </div>
-
-        <p className="text-center text-xs text-muted-foreground">
-          Join the network of enterprise hotels powered by Autopilot ONE
-        </p>
-      </div>
-    </div>
+    </AuthLayout>
   );
 }

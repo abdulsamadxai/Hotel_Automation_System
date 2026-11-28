@@ -154,7 +154,7 @@ export default function Settings() {
                         <Button
                           size="icon"
                           variant="secondary"
-                          className="absolute -bottom-2 -right-2 h-10 w-10 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="absolute -bottom-2 -right-2 h-10 w-10 rounded-full shadow-lg opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                           onClick={() => fileInputRef.current?.click()}
                         >
                           <Camera className="h-4 w-4" />

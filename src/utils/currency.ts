@@ -81,8 +81,7 @@ export function formatCurrency(amount: unknown, currency: Currency = 'USD'): str
  */
 export function convertFromUSD(amountUSD: unknown, toCurrency: Currency): number {
     try {
-        const config = CURRENCIES[toCurrency] || CURRENCIES.USD;
-        return (Number(amountUSD) || 0) * (config.rate || 1);
+        return (Number(amountUSD) || 0) * getRate(toCurrency);
     } catch (_e: unknown) {
         return Number(amountUSD) || 0;
     }
@@ -93,8 +92,7 @@ export function convertFromUSD(amountUSD: unknown, toCurrency: Currency): number
  */
 export function convertToUSD(amount: unknown, fromCurrency: Currency): number {
     try {
-        const config = CURRENCIES[fromCurrency] || CURRENCIES.USD;
-        return (Number(amount) || 0) / (config.rate || 1);
+        return (Number(amount) || 0) / getRate(fromCurrency);
     } catch (_e: unknown) {
         return Number(amount) || 0;
     }
@@ -120,4 +118,80 @@ export function convertCurrency(
 export function formatAndConvert(amountUSD: unknown, currency: Currency): string {
     const converted = convertFromUSD(amountUSD, currency);
     return formatCurrency(converted, currency);
+}
+
+// ------------------------------------------------------------------
+// Live exchange rates
+// ------------------------------------------------------------------
+// The CURRENCIES table above is the fallback. On app start the provider
+// fetches real rates (free endpoint, no key) and overrides them here, so
+// every amount in the app converts at the day's rate. When the fetch
+// fails or the user is offline, the fallback rates above are used and
+// nothing breaks.
+
+/** Live rate per currency, USD-based. Empty until fetchLiveRates() runs. */
+let liveRates: Partial<Record<Currency, number>> = {};
+
+const LIVE_RATES_CACHE_KEY = 'app-live-rates';
+/** Cached rates stay fresh for 12 hours. */
+const LIVE_RATES_TTL_MS = 12 * 60 * 60 * 1000;
+
+/** Rate to use right now: live when available, otherwise the fallback. */
+export function getRate(currency: Currency): number {
+    return liveRates[currency] ?? CURRENCIES[currency]?.rate ?? 1;
+}
+
+/** True once live rates have been loaded (for the Settings page note). */
+export function hasLiveRates(): boolean {
+    return Object.keys(liveRates).length > 0;
+}
+
+function applyRates(rates: Partial<Record<Currency, number>>) {
+    liveRates = { ...liveRates, ...rates };
+}
+
+/** Load cached rates (if fresh) without a network call. */
+export function loadCachedRates(): boolean {
+    try {
+        const raw = localStorage.getItem(LIVE_RATES_CACHE_KEY);
+        if (!raw) return false;
+        const parsed = JSON.parse(raw) as { at: number; rates: Partial<Record<Currency, number>> };
+        if (Date.now() - parsed.at > LIVE_RATES_TTL_MS) return false;
+        applyRates(parsed.rates);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Fetch live USD-based rates from the free exchangerate-api endpoint
+ * (no key needed). Returns true when live rates are now in use.
+ * Any failure is silent — the fallback rates keep working.
+ */
+export async function fetchLiveRates(): Promise<boolean> {
+    try {
+        const res = await fetch('https://open.er-api.com/v6/latest/USD');
+        if (!res.ok) return false;
+        const data = (await res.json()) as { rates?: Record<string, number> };
+        if (!data.rates) return false;
+        const rates: Partial<Record<Currency, number>> = {};
+        (Object.keys(CURRENCIES) as Currency[]).forEach((code) => {
+            const rate = data.rates?.[code];
+            if (typeof rate === 'number' && rate > 0) rates[code] = rate;
+        });
+        if (Object.keys(rates).length === 0) return false;
+        applyRates(rates);
+        try {
+            localStorage.setItem(
+                LIVE_RATES_CACHE_KEY,
+                JSON.stringify({ at: Date.now(), rates }),
+            );
+        } catch {
+            // Storage full or unavailable — live rates still work in memory.
+        }
+        return true;
+    } catch {
+        return false;
+    }
 }

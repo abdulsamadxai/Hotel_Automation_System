@@ -164,3 +164,47 @@
     to { opacity: 1; transform: scale(1); }
   }
 }
+
+/* ------------------------------------------------------------------
+   Invoice printing (Billing page). window.print() is called from the
+   invoice preview dialog; without these rules the browser would print
+   the whole app (sidebar, overlay, dark theme). Only the white
+   #printable-invoice sheet is printed, full height, no clipping.
+   ------------------------------------------------------------------ */
+@page {
+  margin: 12mm;
+}
+
+@media print {
+  body {
+    background: white !important;
+  }
+
+  /* Hide everything, then reveal only the invoice sheet. */
+  body * {
+    visibility: hidden;
+  }
+  #printable-invoice,
+  #printable-invoice * {
+    visibility: visible;
+  }
+
+  /* The dialog scroll container would clip the sheet — let it flow. */
+  [role="dialog"] {
+    position: static !important;
+    max-height: none !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: none !important;
+    transform: none !important;
+  }
+
+  #printable-invoice {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+}

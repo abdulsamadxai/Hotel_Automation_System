@@ -14,6 +14,7 @@ import { serializeInvoice } from '../lib/serialize.js';
 import { logActivity } from '../services/activity.js';
 import { createInvoiceRecord } from '../services/invoices.js';
 import { evaluateAutomations } from '../services/automationEngine.js';
+import { invoiceEmail, sendEmail } from '../services/email.js';
 import { roundMoney } from '../lib/dates.js';
 
 export const invoicesRouter = Router();
@@ -339,6 +340,55 @@ invoicesRouter.post(
       entity_id: updated.id,
     });
     ok(res, serializeInvoice(updated));
+  }),
+);
+
+/**
+ * POST /api/invoices/:id/send-email — send the invoice to the guest by
+ * email (Resend). Fails with 502 when no provider is configured or the
+ * provider rejects the send, so the Billing page never claims an email
+ * went out when it did not.
+ */
+invoicesRouter.post(
+  '/:id/send-email',
+  requireRole(...MANAGE_ROLES),
+  asyncHandler(async (req, res) => {
+    const user = requireAuth(req as AuthRequest);
+    const invoice = await prisma.invoice.findUnique({
+      where: { id: req.params.id },
+      include: { line_items: true, guest: true },
+    });
+    if (!invoice) throw new ApiError(404, 'Invoice not found');
+    assertInScope(req as AuthRequest, invoice.hotel_id);
+    if (!invoice.guest?.email) {
+      throw new ApiError(
+        400,
+        'This invoice is not linked to a guest with an email address',
+      );
+    }
+    const hotel = await prisma.hotel.findUnique({
+      where: { id: invoice.hotel_id },
+    });
+    const { subject, html } = invoiceEmail({
+      hotelName: hotel?.name ?? 'Hotel Autopilot ONE',
+      guestName: invoice.guest.name,
+      invoiceNumber: invoice.invoice_number,
+      total: invoice.total,
+    });
+    const result = await sendEmail({ to: invoice.guest.email, subject, html });
+    if (!result.sent) {
+      throw new ApiError(502, result.error ?? 'Could not send the email');
+    }
+    await logActivity(prisma, {
+      hotel_id: invoice.hotel_id,
+      user_id: user.id,
+      user_name: user.full_name,
+      action: 'invoice_updated',
+      details: `Sent invoice ${invoice.invoice_number} to ${invoice.guest.email}`,
+      entity_type: 'invoice',
+      entity_id: invoice.id,
+    });
+    ok(res, { sent: true, to: invoice.guest.email, id: result.id });
   }),
 );
 

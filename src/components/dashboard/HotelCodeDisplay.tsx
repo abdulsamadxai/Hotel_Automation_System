@@ -32,7 +32,7 @@ export function HotelCodeDisplay({ className, showManageButton = false }: HotelC
 
     return (
         <div className={cn("bg-primary/5 border border-primary/20 rounded-xl p-6 space-y-4 animate-in fade-in slide-in-from-bottom-2", className)}>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h4 className="font-bold text-lg flex items-center gap-2">
                         <Shield className="h-5 w-5 text-primary" />

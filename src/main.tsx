@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
@@ -18,9 +19,11 @@ try {
 
 
     root.render(
-        <AppSettingsProvider>
-            <App />
-        </AppSettingsProvider>
+        <StrictMode>
+            <AppSettingsProvider>
+                <App />
+            </AppSettingsProvider>
+        </StrictMode>
     );
 
 } catch (error) {

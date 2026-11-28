@@ -174,10 +174,12 @@ bookingsRouter.post(
 );
 
 /**
- * DELETE /api/bookings/:id — owner / manager / super_admin. Only a
- * `pending` or `cancelled` booking may be deleted; anything further along
- * (confirmed / checked in / checked out) must be cancelled first, so the
- * room, invoice and task side effects of cancel are never skipped.
+ * DELETE /api/bookings/:id — owner / manager / super_admin. A `pending`,
+ * `confirmed` or `cancelled` booking may be deleted; checked-in / checked-out
+ * bookings are financial history and cannot be deleted (409). Deleting a
+ * confirmed booking cancels its unpaid invoices and drops its pending
+ * housekeeping tasks (the cancel flow's cleanup, minus room changes — a
+ * confirmed booking's room is still available).
  */
 bookingsRouter.delete(
   '/:id',
@@ -189,13 +191,31 @@ bookingsRouter.delete(
     });
     if (!existing) throw new ApiError(404, 'Booking not found');
     assertInScope(req as AuthRequest, existing.hotel_id);
-    if (existing.status !== 'pending' && existing.status !== 'cancelled') {
+    if (
+      existing.status !== 'pending' &&
+      existing.status !== 'confirmed' &&
+      existing.status !== 'cancelled'
+    ) {
       throw new ApiError(
         409,
-        `Only a pending or cancelled booking can be deleted (current status: ${existing.status})`,
+        `Only a pending, confirmed or cancelled booking can be deleted (current status: ${existing.status})`,
       );
     }
-    await prisma.booking.delete({ where: { id: existing.id } });
+    await prisma.$transaction(async (tx) => {
+      if (existing.status === 'confirmed') {
+        await tx.invoice.updateMany({
+          where: {
+            booking_id: existing.id,
+            status: { in: ['pending', 'partially_paid'] },
+          },
+          data: { status: 'cancelled' },
+        });
+        await tx.housekeepingTask.deleteMany({
+          where: { booking_id: existing.id, status: 'pending' },
+        });
+      }
+      await tx.booking.delete({ where: { id: existing.id } });
+    });
     await logActivity(prisma, {
       hotel_id: existing.hotel_id,
       user_id: user.id,

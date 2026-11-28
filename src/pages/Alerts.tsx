@@ -81,7 +81,7 @@ export default function Alerts() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           <div className="glass-card p-4">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-lg bg-status-error/10 flex items-center justify-center text-status-error">
@@ -198,8 +198,7 @@ export default function Alerts() {
                           )}
                           <Button
                             variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
+                            size="icon-sm"
                             aria-label="Dismiss notification"
                             onClick={() => handleDismiss(notification.id)}
                             disabled={markRead.isPending}
@@ -208,8 +207,8 @@ export default function Alerts() {
                           </Button>
                           <Button
                             variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            size="icon-sm"
+                            className="text-destructive hover:text-destructive"
                             aria-label="Delete notification"
                             onClick={() => handleDelete(notification.id)}
                             disabled={deleteNotification.isPending}

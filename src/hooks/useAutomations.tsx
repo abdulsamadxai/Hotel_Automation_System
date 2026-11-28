@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { mockStore, type AutomationCreateInput } from "@/lib/mockStore";
-import type { Automation as CanonicalAutomation, AutomationAction, StoreEventType } from "@/lib/types";
+import { api, hotelParams, writeHotelParams } from "@/lib/api";
+import type { Automation as CanonicalAutomation, AutomationAction, AutomationCreateInput, AutomationExecution, StoreEventType } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -20,7 +20,21 @@ export function useAutomations() {
     queryKey: ["automations", hotelId],
     queryFn: async () => {
       if (!hotelId) return [];
-      return await mockStore.automations.getAll(hotelId);
+      return await api.get<AutomationRule[]>("/api/automations", hotelParams(hotelId));
+    },
+    enabled: !!hotelId,
+  });
+}
+
+/** Recent rule executions, newest first (GET /api/automations/executions). */
+export function useAutomationExecutions() {
+  const { hotelId } = useAuth();
+
+  return useQuery({
+    queryKey: ["automation-executions", hotelId],
+    queryFn: async () => {
+      if (!hotelId) return [];
+      return await api.get<AutomationExecution[]>("/api/automations/executions", hotelParams(hotelId));
     },
     enabled: !!hotelId,
   });
@@ -31,7 +45,7 @@ export function useToggleAutomation() {
 
   return useMutation({
     mutationFn: async ({ id, enabled }: { id: string; enabled: boolean }) => {
-      return await mockStore.automations.update(id, { enabled });
+      return await api.patch<AutomationRule>(`/api/automations/${id}`, { enabled });
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["automations"] });
@@ -48,11 +62,14 @@ export function useToggleAutomation() {
 
 export function useCreateAutomation() {
   const queryClient = useQueryClient();
-  const { hotelId } = useAuth();
+  const { role, hotelId } = useAuth();
 
   return useMutation({
     mutationFn: async (automation: AutomationCreateInput) => {
-      return await mockStore.automations.create(automation, hotelId);
+      return await api.post<AutomationRule>("/api/automations", {
+        ...automation,
+        ...writeHotelParams(role, hotelId),
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["automations"] });
@@ -75,7 +92,7 @@ export function useUpdateAutomation() {
       id: string;
       updates: Partial<Pick<CanonicalAutomation, "name" | "description" | "trigger" | "action" | "enabled" | "config">>;
     }) => {
-      return await mockStore.automations.update(id, updates);
+      return await api.patch<AutomationRule>(`/api/automations/${id}`, updates);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["automations"] });
@@ -92,7 +109,7 @@ export function useDeleteAutomation() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      await mockStore.automations.delete(id);
+      await api.del(`/api/automations/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["automations"] });

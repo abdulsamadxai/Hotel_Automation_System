@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Table,
@@ -85,6 +86,7 @@ export default function Housekeeping() {
     type: "checkout_clean" as TaskType,
     priority: "medium" as TaskPriority,
     assignedTo: "",
+    description: "",
   });
 
   const handleOpenDialog = (task?: HousekeepingTask) => {
@@ -95,10 +97,11 @@ export default function Housekeeping() {
         type: task.type,
         priority: task.priority,
         assignedTo: task.assigned_to || "",
+        description: task.description || "",
       });
     } else {
       setEditingTask(null);
-      setFormData({ roomId: "", type: "checkout_clean", priority: "medium", assignedTo: "" });
+      setFormData({ roomId: "", type: "checkout_clean", priority: "medium", assignedTo: "", description: "" });
     }
     setIsDialogOpen(true);
   };
@@ -110,12 +113,20 @@ export default function Housekeeping() {
   const housekeepingStaff = staffMembers.filter((s) => s.role === "housekeeping");
 
   const handleSaveTask = async () => {
+    // The server requires description (min 1). The dialog has a field
+    // for it; when left blank, derive one from the type + room number so
+    // a task can never be created with an empty description.
+    const room = rooms.find((r) => r.id === formData.roomId);
+    const description =
+      formData.description.trim() ||
+      `${taskTypeLabels[formData.type]} — Room ${room?.number ?? formData.roomId}`;
     if (editingTask) {
       await updateTask.mutateAsync({
         id: editingTask.id,
         room_id: formData.roomId,
         type: formData.type,
         priority: formData.priority,
+        description,
         assigned_to: formData.assignedTo || null,
       });
     } else {
@@ -123,13 +134,14 @@ export default function Housekeeping() {
         room_id: formData.roomId,
         type: formData.type,
         priority: formData.priority,
+        description,
         assigned_to: formData.assignedTo || null,
         due_at: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
       });
     }
     setIsDialogOpen(false);
     setEditingTask(null);
-    setFormData({ roomId: "", type: "checkout_clean", priority: "medium", assignedTo: "" });
+    setFormData({ roomId: "", type: "checkout_clean", priority: "medium", assignedTo: "", description: "" });
   };
 
   const handleStartTask = async (taskId: string) => {
@@ -198,7 +210,7 @@ export default function Housekeeping() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Task Type</Label>
                   <Select
@@ -235,6 +247,17 @@ export default function Housekeeping() {
                 </div>
               </div>
               <div className="space-y-2">
+                <Label>Description</Label>
+                <Input
+                  placeholder="e.g. Checkout clean for Room 101"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Leave blank to use “{taskTypeLabels[formData.type]} — Room {rooms.find((r) => r.id === formData.roomId)?.number ?? "…"}”.
+                </p>
+              </div>
+              <div className="space-y-2">
                 <Label>Assign To</Label>
                 <Select
                   value={formData.assignedTo}
@@ -263,7 +286,7 @@ export default function Housekeeping() {
           </DialogContent>
         </Dialog>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           <div className="glass-card p-4 text-center">
             <p className="text-2xl font-bold">{tasks.filter((t) => t.status === 'pending').length}</p>
             <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Pending</p>
@@ -329,7 +352,7 @@ export default function Housekeeping() {
                       {task.assignee?.full_name || (
                         role !== 'housekeeping' ? (
                           <Select onValueChange={(v) => handleAssignTask(task.id, v)}>
-                            <SelectTrigger className="w-32 h-8">
+                            <SelectTrigger className="w-32 h-10">
                               <SelectValue placeholder="Assign" />
                             </SelectTrigger>
                             <SelectContent>
@@ -383,17 +406,17 @@ export default function Housekeeping() {
                         {role !== 'housekeeping' && (
                           <>
                             <Button
-                              size="sm"
+                              size="icon-sm"
                               variant="ghost"
-                              className="h-8 w-8 text-primary"
+                              className="text-primary"
                               onClick={() => handleOpenDialog(task)}
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
                             <Button
-                              size="sm"
+                              size="icon-sm"
                               variant="ghost"
-                              className="h-8 w-8 text-destructive"
+                              className="text-destructive"
                               onClick={() => {
                                 if (confirm("Delete this task?")) {
                                   deleteTask.mutate(task.id);

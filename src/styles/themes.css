@@ -12,9 +12,11 @@
   --popover: 0 0% 100%;
   --popover-foreground: 222.2 84% 4.9%;
 
-  /* Primary */
-  --primary: 160 84% 39%;
-  --primary-foreground: 0 0% 100%;
+  /* Primary — darkened vs dark mode so foreground text passes WCAG AA
+     (white on 39% is only ~2.6:1). Foreground stays near-black, as in
+     dark mode, for ~5:1 contrast on the green. */
+  --primary: 160 84% 32%;
+  --primary-foreground: 222 47% 6%;
 
   /* Secondary */
   --secondary: 210 40% 96.1%;
@@ -35,41 +37,48 @@
   /* Border */
   --border: 214.3 31.8% 91.4%;
   --input: 214.3 31.8% 91.4%;
-  --ring: 160 84% 39%;
+  --ring: 160 84% 32%;
 
   /* Sidebar */
   --sidebar-background: 0 0% 98%;
   --sidebar-foreground: 222.2 84% 4.9%;
-  --sidebar-primary: 160 84% 39%;
-  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-primary: 160 84% 32%;
+  --sidebar-primary-foreground: 222 47% 6%;
   --sidebar-accent: 210 40% 96.1%;
   --sidebar-accent-foreground: 222.2 47.4% 11.2%;
   --sidebar-border: 214.3 31.8% 91.4%;
   --sidebar-ring: 160 84% 39%;
 
-  /* Status Colors */
-  --status-success: 142 76% 36%;
+  /* Status Colors — hues match the dark theme exactly; only lightness
+     is tuned for contrast on white. Success is darkened from 39% to
+     30% (2.6:1 → 4.2:1 as text on white). */
+  --status-success: 160 84% 30%;
   --status-warning: 38 92% 50%;
   --status-error: 0 84% 60%;
   --status-info: 221 83% 53%;
-  --status-pending: 48 96% 53%;
+  --status-pending: 262 83% 58%;
 
   /* Booking Status */
-  --booking-confirmed: 142 76% 36%;
-  --booking-pending: 48 96% 53%;
+  --booking-confirmed: 160 84% 30%;
+  --booking-pending: 38 92% 50%;
   --booking-cancelled: 0 84% 60%;
   --booking-checked-in: 221 83% 53%;
-  --booking-checked-out: 215 20% 65%;
+  --booking-checked-out: 262 83% 58%;
 
   /* Room Status */
-  --room-available: 142 76% 36%;
+  --room-available: 160 84% 30%;
   --room-occupied: 221 83% 53%;
   --room-dirty: 38 92% 50%;
-  --room-cleaning: 48 96% 53%;
+  --room-cleaning: 262 83% 58%;
   --room-maintenance: 0 84% 60%;
 }
 
 /* Light theme specific adjustments */
+:root:not(.dark) {
+  /* Softer glow on white than the dark theme's 0.3-alpha halo. */
+  --shadow-glow: 0 0 16px hsl(160 84% 39% / 0.18);
+}
+
 :root:not(.dark) .glass-card {
   background: rgba(255, 255, 255, 0.8);
   border: 1px solid rgba(0, 0, 0, 0.1);

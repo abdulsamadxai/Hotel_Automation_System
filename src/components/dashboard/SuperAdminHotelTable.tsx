@@ -29,8 +29,8 @@ interface SuperAdminHotelTableProps {
 
 export function SuperAdminHotelTable({ hotels, stats, currency, onSelectHotel }: SuperAdminHotelTableProps) {
     return (
-        <div className="glass-card overflow-hidden animate-fade-in border border-white/5 shadow-glow">
-            <div className="p-6 border-b border-white/5 flex items-center justify-between bg-primary/5">
+        <div className="glass-card overflow-hidden animate-fade-in border border-border">
+            <div className="p-6 border-b border-border flex items-center justify-between bg-primary/5">
                 <div className="flex items-center gap-3">
                     <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
                         <Building2 className="h-5 w-5" />

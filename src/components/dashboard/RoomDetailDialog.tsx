@@ -9,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { Room, RoomStatus } from "@/lib/types";
-import type { BookingWithJoins } from "@/lib/mockStore";
+import type { BookingWithJoins } from "@/lib/types";
 import { useUpdateRoom } from "@/hooks/useRooms";
 import { useCurrency } from "@/contexts/AppSettingsContext";
 import { formatAndConvert } from "@/utils/currency";

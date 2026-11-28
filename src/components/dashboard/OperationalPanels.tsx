@@ -4,7 +4,7 @@ import { LogIn, LogOut, Bell, CheckCheck } from "lucide-react";
 import { format, parseISO, isValid } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import type { BookingWithJoins } from "@/lib/mockStore";
+import type { BookingWithJoins } from "@/lib/types";
 import type { HousekeepingTask } from "@/hooks/useHousekeeping";
 import type { Notification } from "@/lib/types";
 import { useUpdateBookingStatus } from "@/hooks/useBookings";
@@ -85,6 +85,7 @@ export function ArrivalsDeparturesPanel({
           {canCheckInOut && canAct && (
             <Button
               size="sm"
+              className="h-7"
               disabled={pendingId === booking.id}
               onClick={() =>
                 runStatus(booking.id, isArrival ? "checked_in" : "checked_out")
@@ -106,7 +107,7 @@ export function ArrivalsDeparturesPanel({
   return (
     <div className="glass-card overflow-hidden">
       <div className="p-4 border-b border-border flex items-center justify-between">
-        <h3 className="font-semibold">Today&apos;s arrivals &amp; departures</h3>
+        <h3 className="text-base font-semibold">Today&apos;s arrivals &amp; departures</h3>
         {showViewAll && (
           <Link to="/bookings" className="text-xs text-primary hover:underline">
             View all bookings
@@ -176,7 +177,7 @@ export function HousekeepingQueuePanel({ tasks, title, showViewAll }: Housekeepi
   return (
     <div className="glass-card overflow-hidden">
       <div className="p-4 border-b border-border flex items-center justify-between">
-        <h3 className="font-semibold">
+        <h3 className="text-base font-semibold">
           {title} ({openTasks.length} open)
         </h3>
         {showViewAll && (
@@ -205,7 +206,7 @@ export function HousekeepingQueuePanel({ tasks, title, showViewAll }: Housekeepi
                     {task.type.replace(/_/g, " ")}
                   </p>
                   {task.is_overdue && (
-                    <Badge variant="destructive" className="text-[10px]">
+                    <Badge variant="destructive" className="text-xs">
                       Overdue
                     </Badge>
                   )}
@@ -225,6 +226,7 @@ export function HousekeepingQueuePanel({ tasks, title, showViewAll }: Housekeepi
                   <Button
                     size="sm"
                     variant="outline"
+                    className="h-7"
                     disabled={pendingId === task.id}
                     onClick={() => runStatus(task.id, "in_progress")}
                   >
@@ -233,6 +235,7 @@ export function HousekeepingQueuePanel({ tasks, title, showViewAll }: Housekeepi
                 )}
                 <Button
                   size="sm"
+                  className="h-7"
                   disabled={pendingId === task.id}
                   onClick={() => runStatus(task.id, "completed")}
                 >
@@ -268,7 +271,7 @@ export function AlertsPanel({ notifications }: AlertsPanelProps) {
       <div className="p-4 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Bell className="h-4 w-4 text-muted-foreground" />
-          <h3 className="font-semibold">Alerts ({unread.length} unread)</h3>
+          <h3 className="text-base font-semibold">Alerts ({unread.length} unread)</h3>
         </div>
         <div className="flex items-center gap-2">
           {unread.length > 0 && (
@@ -300,14 +303,14 @@ export function AlertsPanel({ notifications }: AlertsPanelProps) {
                 <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
                   {notification.message}
                 </p>
-                <p className="text-[10px] text-muted-foreground/70 mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5">
                   {formatDate(notification.created_at, "MMM d, h:mm a")}
                 </p>
               </div>
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-xs shrink-0"
+                className="h-7 text-xs shrink-0"
                 disabled={pendingId === notification.id}
                 onClick={() => {
                   setPendingId(notification.id);

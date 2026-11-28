@@ -14,14 +14,15 @@ export type UserRole =
   | 'housekeeping'
   | 'staff';
 
-/** A login user. Only the SHA-256 hex digest is stored — never plaintext. */
-export interface AuthUser {
+/** A login user as the API returns it (never includes password material). */
+export interface ApiUser {
   id: string;
   email: string;
-  password_hash: string;
   full_name: string;
   role: UserRole;
   hotel_id?: string | null;
+  created_at: string;
+  updated_at?: string;
 }
 
 /** The session user exposed by useAuth (no password material). */
@@ -321,28 +322,163 @@ export interface ActivityLog {
   created_at: string;
 }
 
-/** Persisted counters so booking/invoice/task numbers never repeat. */
-export interface StoreCounters {
-  booking: number;
-  invoice: number;
-  task: number;
+// ---------------------------------------------------------------------------
+// Joined views — what the API returns for list/detail endpoints
+// (guest / room / assignee / hotel joins serialised by the backend).
+// ---------------------------------------------------------------------------
+
+export type BookingWithJoins = Booking & {
+  guest: {
+    id: string;
+    name: string;
+    email: string | null;
+    tags: GuestTag[];
+  } | null;
+  room: { id: string; number: string; type: string } | null;
+};
+
+export type InvoiceWithJoins = Invoice & {
+  booking: {
+    id: string;
+    room: { number: string } | null;
+  } | null;
+  guest: { id: string; name: string; email: string | null } | null;
+};
+
+export type TaskWithJoins = HousekeepingTask & {
+  room: { id: string; number: string; type: string } | null;
+  assignee: { id: string; full_name: string } | null;
+};
+
+export type StaffWithJoins = StaffMember & {
+  saas_role: StaffRole;
+  hotels: { name: string } | null;
+};
+
+// ---------------------------------------------------------------------------
+// Create inputs — the payloads the hooks POST to the API. Nights and totals
+// are NOT sent for bookings: the server computes them from the room's
+// price_per_night (see backend/src/services/bookingService.ts).
+// ---------------------------------------------------------------------------
+
+export interface BookingCreateInput {
+  guest_id: string;
+  room_id: string | null;
+  guest_type: 'national' | 'international';
+  check_in: string;
+  check_out: string;
+  notes?: string | null;
+  status?: BookingStatus;
+  payment_status?: Booking['payment_status'];
+  deposit_amount?: number;
+  created_by?: string | null;
 }
 
-/** Whole persisted store state (localStorage key `has:store:v1`). */
-export interface StoreState {
-  version: 1;
-  users: AuthUser[];
-  guests: Guest[];
-  bookings: Booking[];
-  rooms: Room[];
-  housekeepingTasks: HousekeepingTask[];
-  staff: StaffMember[];
-  messages: Message[];
-  notifications: Notification[];
-  hotels: Hotel[];
-  invoices: Invoice[];
-  expenses: Expense[];
-  automations: Automation[];
-  activityLogs: ActivityLog[];
-  counters: StoreCounters;
+export interface RoomCreateInput {
+  number: string;
+  type: Room['type'];
+  floor: number;
+  status?: Room['status'];
+  price_per_night: number;
+  capacity: number;
+  amenities?: string[];
+}
+
+export interface GuestCreateInput {
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+  nationality?: string | null;
+  id_number?: string | null;
+  notes?: string | null;
+  tags?: GuestTag[];
+}
+
+export interface StaffCreateInput {
+  full_name: string;
+  email?: string | null;
+  phone?: string | null;
+  role: StaffRole;
+  status?: StaffMember['status'];
+  shift?: string | null;
+  hire_date?: string;
+  user_id?: string | null;
+}
+
+export interface MessageCreateInput {
+  guest_id: string;
+  guest_name?: string;
+  guest_email?: string;
+  guest_phone?: string;
+  subject?: string;
+  message: string;
+  direction?: Message['direction'];
+  channel?: Message['channel'];
+  status?: Message['status'];
+  priority?: Message['priority'];
+  assigned_to?: string | null;
+}
+
+export interface InvoiceCreateInput {
+  guest_id?: string | null;
+  booking_id?: string | null;
+  amount: number;
+  tax?: number;
+  line_items?: Invoice['line_items'];
+  status?: Invoice['status'];
+  due_date?: string | null;
+  payment_method?: string;
+  notes?: string;
+}
+
+/** Fields the Billing page may change on an existing invoice. */
+export interface InvoiceUpdateInput {
+  amount?: number;
+  tax?: number;
+  line_items?: LineItem[];
+  due_date?: string | null;
+  payment_method?: string;
+  notes?: string;
+}
+
+export interface AutomationCreateInput {
+  name: string;
+  description?: string;
+  trigger: StoreEventType;
+  action: AutomationAction;
+  enabled?: boolean;
+  config?: Record<string, unknown>;
+}
+
+/** One run of an automation rule (GET /api/automations/executions). */
+export interface AutomationExecution {
+  id: string;
+  automation_id: string;
+  hotel_id: string;
+  event: string;
+  status: 'completed' | 'failed' | 'logged' | 'skipped';
+  detail: string | null;
+  created_at: string;
+  automation: { name: string; trigger: string; action: string };
+}
+
+/** GET /api/dashboard/summary — date-aware KPIs, lists and trend arrays. */
+export interface DashboardSummary {
+  anchor_date: string;
+  today_check_ins: number;
+  today_check_outs: number;
+  occupancy_rate: number;
+  revenue_today: number;
+  revenue_7d: number;
+  revenue_month: number;
+  revenue_year: number;
+  outstanding: number;
+  pending_tasks: number;
+  unread_messages: number;
+  unread_alerts: number;
+  arrivals: BookingWithJoins[];
+  departures: BookingWithJoins[];
+  housekeeping_queue: TaskWithJoins[];
+  occupancy_trend: Array<{ date: string; rate: number }>;
+  revenue_trend: Array<{ date: string; amount: number }>;
 }

@@ -19,8 +19,8 @@ import {
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
-import { useQuery } from "@tanstack/react-query";
-import { mockData } from "@/lib/mockData";
+import { useHotel } from "@/hooks/useHotels";
+import { useAutomations, useAutomationExecutions } from "@/hooks/useAutomations";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -75,13 +75,13 @@ function MenuGroup({ label, items, defaultOpen = true }: MenuGroupProps) {
     <Collapsible open={isOpen || hasActiveItem} onOpenChange={setIsOpen}>
       <SidebarGroup>
         <CollapsibleTrigger asChild>
-          <SidebarGroupLabel className="flex items-center justify-between cursor-pointer hover:bg-sidebar-accent/50 rounded-md px-2 py-1.5 transition-colors">
-            <span className="text-xs uppercase tracking-wider text-sidebar-foreground/60">
+          <SidebarGroupLabel className="flex items-center justify-between cursor-pointer hover:bg-sidebar-accent/50 rounded-md px-2 py-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+            <span className="text-xs uppercase tracking-wider text-sidebar-foreground">
               {label}
             </span>
             {!isCollapsed && (
               <ChevronDown
-                className={`h-3 w-3 text-sidebar-foreground/40 transition-transform duration-200 ${isOpen ? "rotate-0" : "-rotate-90"
+                className={`h-3 w-3 text-sidebar-foreground transition-transform duration-200 ${isOpen ? "rotate-0" : "-rotate-90"
                   }`}
               />
             )}
@@ -101,7 +101,7 @@ function MenuGroup({ label, items, defaultOpen = true }: MenuGroupProps) {
                       to={item.url}
                       end
                       className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200"
-                      activeClassName="bg-primary/10 text-primary border-l-2 border-primary"
+                      activeClassName="bg-primary/10 text-primary font-medium"
                     >
                       {item.iconComp}
                       <span className="truncate">{item.title}</span>
@@ -124,16 +124,17 @@ export function AppSidebar() {
   const navigate = useNavigate();
   const isCollapsed = state === "collapsed";
 
-  const { data: hotel } = useQuery({
-    queryKey: ['hotel-info', hotelId],
-    queryFn: async () => {
-      if (!hotelId) return null;
-      // Return mock hotel data
-      await new Promise(resolve => setTimeout(resolve, 50));
-      return mockData.hotels.find(h => h.id === hotelId) || mockData.hotels[0];
-    },
-    enabled: !!hotelId
-  });
+  // 'global' (super-admin, no hotel picked) falls back to the first hotel.
+  const { data: hotel } = useHotel(hotelId || null);
+
+  // Real automation data for the footer card (same queries as the
+  // Automations page) — never hardcoded counts.
+  const { data: automations = [] } = useAutomations();
+  const { data: executions = [] } = useAutomationExecutions();
+  const rulesRunning = automations.filter((a) => a.enabled).length;
+  const eventsToday = executions.filter(
+    (e) => new Date(e.created_at).toDateString() === new Date().toDateString(),
+  ).length;
 
   const handleSignOut = async () => {
     await signOut();
@@ -180,13 +181,13 @@ export function AppSidebar() {
         <SidebarHeader className="p-4">
           {/* Same header as below but simplified or identical */}
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-status-warning/20 text-status-warning font-bold text-lg shadow-glow overflow-hidden shrink-0">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-lg shadow-glow overflow-hidden shrink-0">
               <ClipboardList className="h-5 w-5" />
             </div>
             {!isCollapsed && (
               <div className="flex flex-col">
                 <span className="font-bold text-foreground">Housekeeping</span>
-                <span className="text-[10px] text-muted-foreground uppercase">Task View</span>
+                <span className="text-xs text-muted-foreground uppercase">Task View</span>
               </div>
             )}
           </div>
@@ -228,7 +229,7 @@ export function AppSidebar() {
               <span className="font-bold text-foreground truncate">
                 {hotel?.name || "Autopilot ONE"}
               </span>
-              <span className="text-[10px] text-muted-foreground uppercase tracking-widest truncate">
+              <span className="text-xs text-muted-foreground uppercase tracking-widest truncate">
                 Hotel Operating System
               </span>
             </div>
@@ -263,13 +264,15 @@ export function AppSidebar() {
           <>
             <div className="glass-card p-3 rounded-lg">
               <div className="flex items-center gap-2 mb-2">
-                <div className="h-2 w-2 rounded-full bg-status-success animate-pulse" />
+                <div className={`h-2 w-2 rounded-full ${rulesRunning > 0 ? "bg-status-success animate-pulse" : "bg-muted-foreground"}`} />
                 <span className="text-xs text-muted-foreground">
-                  Automation Active
+                  {rulesRunning > 0 ? "Automation Active" : "Automation"}
                 </span>
               </div>
-              <p className="text-[10px] text-muted-foreground/60">
-                12 rules running • 48 events today
+              <p className="text-xs text-muted-foreground">
+                {automations.length === 0
+                  ? "No automation rules yet"
+                  : `${rulesRunning} rule${rulesRunning === 1 ? "" : "s"} running • ${eventsToday} event${eventsToday === 1 ? "" : "s"} today`}
               </p>
             </div>
 
@@ -282,7 +285,7 @@ export function AppSidebar() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{user.email}</p>
                     {role && (
-                      <Badge variant="outline" className={`text-[10px] mt-1 ${roleColors[role] || ''}`}>
+                      <Badge variant="outline" className={`text-xs mt-1 ${roleColors[role] || ''}`}>
                         {role.charAt(0).toUpperCase() + role.slice(1)}
                       </Badge>
                     )}

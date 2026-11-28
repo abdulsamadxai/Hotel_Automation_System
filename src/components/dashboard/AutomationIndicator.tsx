@@ -49,7 +49,7 @@ export function AutomationIndicator({ rules, canManage }: AutomationIndicatorPro
               <Zap className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="font-semibold">Automation Engine</h3>
+              <h3 className="text-base font-semibold">Automation Engine</h3>
               <p className="text-xs text-muted-foreground">
                 {activeRules} of {rules.length} rules active
               </p>
@@ -85,11 +85,11 @@ export function AutomationIndicator({ rules, canManage }: AutomationIndicatorPro
                   />
                   <p className="text-sm font-medium truncate">{rule.name}</p>
                 </div>
-                <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                <p className="text-xs text-muted-foreground mt-0.5 truncate">
                   {triggerLabels[rule.trigger] ?? rule.trigger} →{" "}
                   {actionLabels[rule.action] ?? rule.action}
                 </p>
-                <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5">
                   {rule.execution_count} run
                   {rule.execution_count === 1 ? "" : "s"} ·{" "}
                   {formatLastTriggered(rule.last_triggered_at)}

@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { mockStore } from "@/lib/mockStore";
+import { api, hotelParams } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import type { ActivityLog as CanonicalActivityLog } from "@/lib/types";
 import { useAuth } from "@/hooks/useAuth";
@@ -20,8 +20,11 @@ export function useActivity(limit: number = 10) {
     queryKey: ["activity", hotelId, limit],
     queryFn: async () => {
       if (!hotelId) return [];
-      const logs = await mockStore.activity.getAll(hotelId);
-      // Newest first (the store already sorts; sort defensively) then limit.
+      const logs = await api.get<Activity[]>(
+        "/api/activity",
+        { ...hotelParams(hotelId), limit: String(limit) },
+      );
+      // Newest first (the server already sorts; sort defensively) then limit.
       const sorted = [...logs].sort(
         (a, b) =>
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
@@ -33,19 +36,20 @@ export function useActivity(limit: number = 10) {
 }
 
 export function useRealtimeActivity() {
-  // Mock implementation - no realtime in frontend-only
+  // No realtime channel — activity refreshes on navigation and on
+  // invalidation after mutations. Kept as a no-op for existing call sites.
 }
 
 export function useRealtimeRooms() {
-  // Mock implementation - no realtime in frontend-only
+  // No realtime channel — see useRealtimeActivity.
 }
 
 export function useRealtimeBookings() {
-  // Mock implementation - no realtime in frontend-only
+  // No realtime channel — see useRealtimeActivity.
 }
 
 export function useRealtimeHousekeeping() {
-  // Mock implementation - no realtime in frontend-only
+  // No realtime channel — see useRealtimeActivity.
 }
 
 export function useDeleteActivity() {
@@ -53,7 +57,7 @@ export function useDeleteActivity() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      await mockStore.activity.delete(id);
+      await api.del(`/api/activity/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["activity"] });

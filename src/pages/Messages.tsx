@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Send, MessageSquare, User, Phone, Mail, Loader2, Trash2, RefreshCw } from "lucide-react";
+import { Plus, Search, Send, MessageSquare, User, Phone, Mail, Loader2, Trash2, RefreshCw, ArrowLeft } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useConversations, useMessages, useSendMessage, useDeleteConversation, type Conversation, type Message, type MessageChannel } from "@/hooks/useMessages";
 import { formatDistanceToNow } from "date-fns";
@@ -85,10 +85,12 @@ export default function Messages() {
           </Button>
         </div>
 
-        {/* Messages Interface */}
-        <div className="glass-card overflow-hidden h-[600px] flex">
-          {/* Conversation List */}
-          <div className="w-80 border-r border-border flex flex-col">
+        {/* Messages Interface — stacked on mobile (list first, thread
+            after a conversation is picked), side-by-side from md up. */}
+        <div className="glass-card overflow-hidden h-[600px] flex flex-col md:flex-row">
+          {/* Conversation List — full width on mobile, fixed 320px from md.
+              Hidden on mobile once a thread is open (back button returns). */}
+          <div className={`${selectedGuestId ? "hidden md:flex" : "flex"} w-full md:w-80 border-r border-border flex-col shrink-0`}>
             <div className="p-4 border-b border-border">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -136,20 +138,20 @@ export default function Messages() {
                           <div className="flex items-center gap-2 mt-1">
                             <Badge
                               variant="outline"
-                              className={`text-[10px] ${channelColors[conv.channel] || "bg-muted"}`}
+                              className={`text-xs ${channelColors[conv.channel] || "bg-muted"}`}
                             >
                               <ChannelIcon className="h-2.5 w-2.5 mr-1" />
                               {conv.channel}
                             </Badge>
                             {conv.unread_count > 0 && (
-                              <span className="h-5 w-5 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center">
+                              <span className="h-5 w-5 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center">
                                 {conv.unread_count}
                               </span>
                             )}
                           </div>
                         </div>
                         <div className="absolute right-2 bottom-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={(e) => handleDeleteConversation(e, conv.guest_id)}>
+                          <Button size="icon-sm" variant="ghost" className="text-destructive" onClick={(e) => handleDeleteConversation(e, conv.guest_id)}>
                             <Trash2 className="h-3 w-3" />
                           </Button>
                         </div>
@@ -161,13 +163,23 @@ export default function Messages() {
             </div>
           </div>
 
-          {/* Message Thread */}
-          <div className="flex-1 flex flex-col">
+          {/* Message Thread — hidden on mobile until a conversation is
+              picked; the back button returns to the list. */}
+          <div className={`${selectedGuestId ? "flex" : "hidden md:flex"} flex-1 flex-col min-w-0`}>
             {selectedGuestId ? (
               <>
                 {/* Conversation Header */}
                 <div className="p-4 border-b border-border bg-background/50 backdrop-blur-sm">
                   <div className="flex items-center gap-3">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="md:hidden shrink-0"
+                      aria-label="Back to conversations"
+                      onClick={() => setSelectedGuestId(null)}
+                    >
+                      <ArrowLeft className="h-4 w-4" />
+                    </Button>
                     <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium">
                       {(activeConversation?.guest_name || 'Guest').substring(0, 2).toUpperCase()}
                     </div>
@@ -194,16 +206,16 @@ export default function Messages() {
                           }`}
                       >
                         <div
-                          className={`max-w-[70%] p-3 rounded-xl shadow-sm ${msg.direction === "outbound"
+                          className={`max-w-[85%] sm:max-w-[70%] p-3 rounded-xl shadow-sm ${msg.direction === "outbound"
                             ? "bg-primary text-primary-foreground"
                             : "bg-card border border-border"
                             }`}
                         >
                           <p className="text-sm">{msg.message}</p>
                           <div className={`flex items-center gap-1 mt-1 justify-end ${msg.direction === "outbound" ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
-                            <span className="text-[10px]">{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            <span className="text-xs">{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                             {msg.direction === "outbound" && (
-                              <span className="text-[10px] ml-1 uppercase font-bold tracking-wider opacity-80">{msg.status}</span>
+                              <span className="text-xs ml-1 uppercase font-bold tracking-wider opacity-80">{msg.status}</span>
                             )}
                           </div>
                         </div>

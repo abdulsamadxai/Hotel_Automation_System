@@ -144,7 +144,7 @@ export default function Rooms() {
                   onChange={(e) => setFormData({ ...formData, number: e.target.value })}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Type</Label>
                   <Select
@@ -171,7 +171,7 @@ export default function Rooms() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Capacity</Label>
                   <Input
@@ -197,14 +197,14 @@ export default function Rooms() {
         </Dialog>
 
         {/* Status Overview - Clickable Filters */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
           {(["available", "occupied", "dirty", "cleaning", "maintenance"] as const).map(
             (status) => (
               <div
                 key={status}
                 onClick={() => handleStatusFilter(status)}
                 className={`glass-card p-4 text-center transition-all duration-200 cursor-pointer hover:scale-[1.02] active:scale-[0.98] ${activeFilter === status
-                    ? "ring-2 ring-primary shadow-glow border-primary/50"
+                    ? "ring-2 ring-primary shadow-md border-primary/50"
                     : "hover:border-primary/30"
                   }`}
               >

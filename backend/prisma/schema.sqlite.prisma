@@ -1,0 +1,517 @@
+// DEV-ONLY SMOKE-TEST SCHEMA. This file exists only so the API can be booted
+// and exercised locally in this VM, which has no PostgreSQL. It is NOT the
+// real config: schema.prisma (provider postgresql) is what ships and what
+// Render runs. Differences from schema.prisma: provider sqlite, and the
+// String[] / enum-array fields (Room.amenities, Guest.tags) are Json,
+// because SQLite has no array columns. Regenerate it from schema.prisma
+// with the same sed if the real schema changes.
+
+// Prisma schema for the Hotel Automation System backend.
+//
+// PostgreSQL is the production database (see render.yaml). Field names are
+// snake_case throughout so they match the frontend's canonical types in
+// src/lib/types.ts exactly — no @map juggling on columns. Table names are
+// plural snake_case via @@map.
+//
+// Money is Float (the frontend uses plain numbers; no Decimal handling).
+// Dates are DateTime (UTC). Invoice line items live in their own table
+// (InvoiceLineItem) and are serialised back into the `line_items` array the
+// frontend expects.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  super_admin
+  owner
+  manager
+  housekeeping
+  staff
+}
+
+enum RoomStatus {
+  available
+  occupied
+  dirty
+  cleaning
+  maintenance
+}
+
+enum RoomType {
+  standard
+  deluxe
+  suite
+  penthouse
+}
+
+enum GuestTag {
+  vip
+  regular
+  blocked
+}
+
+enum GuestType {
+  national
+  international
+}
+
+enum BookingStatus {
+  pending
+  confirmed
+  checked_in
+  checked_out
+  cancelled
+}
+
+enum PaymentStatus {
+  pending
+  partially_paid
+  paid
+  refunded
+}
+
+enum TaskStatus {
+  pending
+  in_progress
+  completed
+  overdue
+}
+
+enum TaskType {
+  checkout_clean
+  stay_clean
+  deep_clean
+  daily_clean
+  inspection
+  maintenance
+}
+
+enum TaskPriority {
+  low
+  medium
+  high
+}
+
+enum StaffRole {
+  housekeeping
+  manager
+  owner
+  staff
+}
+
+enum StaffStatus {
+  on_duty
+  off_duty
+  break
+  active
+}
+
+enum MessageStatus {
+  sent
+  delivered
+  read
+  failed
+  pending
+  resolved
+}
+
+enum MessageDirection {
+  inbound
+  outbound
+}
+
+enum MessageChannel {
+  email
+  sms
+  whatsapp
+  internal
+}
+
+enum MessagePriority {
+  low
+  medium
+  high
+}
+
+enum NotificationType {
+  booking
+  task
+  alert
+  automation
+  room
+  info
+  warning
+  success
+}
+
+enum LineItemType {
+  charge
+  service
+  tax
+  discount
+}
+
+enum InvoiceStatus {
+  pending
+  partially_paid
+  paid
+  refunded
+  cancelled
+}
+
+enum ExecutionStatus {
+  completed
+  logged
+  skipped
+  failed
+}
+
+model Hotel {
+  id          String   @id @default(cuid())
+  name        String
+  code        String   @unique
+  access_code String
+  location    String   @default("")
+  logo_url    String   @default("")
+  owner_name  String   @default("")
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  users         User[]
+  rooms         Room[]
+  guests        Guest[]
+  bookings      Booking[]
+  invoices      Invoice[]
+  tasks         HousekeepingTask[]
+  staff         StaffMember[]
+  messages      Message[]
+  notifications Notification[]
+  expenses      Expense[]
+  automations   Automation[]
+  executions    AutomationExecution[]
+  activityLogs  ActivityLog[]
+  settings      HotelSettings?
+  counters      Counter[]
+
+  @@map("hotels")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  password_hash String
+  full_name     String
+  role          UserRole @default(staff)
+  hotel_id      String?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  hotel Hotel?        @relation(fields: [hotel_id], references: [id], onDelete: SetNull)
+  staff StaffMember[]
+
+  @@map("users")
+}
+
+model Room {
+  id              String     @id @default(cuid())
+  hotel_id        String
+  number          String
+  type            RoomType
+  floor           Int
+  status          RoomStatus @default(available)
+  price_per_night Float
+  capacity        Int
+  amenities       Json
+  created_at      DateTime   @default(now())
+  updated_at      DateTime   @updatedAt
+
+  hotel    Hotel              @relation(fields: [hotel_id], references: [id], onDelete: Cascade)
+  bookings Booking[]
+  tasks    HousekeepingTask[]
+
+  @@unique([hotel_id, number])
+  @@map("rooms")
+}
+
+model Guest {
+  id           String     @id @default(cuid())
+  hotel_id     String
+  name         String
+  email        String?
+  phone        String?
+  nationality  String?
+  id_number    String?
+  notes        String?
+  tags         Json
+  total_stays  Int        @default(0)
+  total_spent  Float      @default(0)
+  last_stay_at DateTime?
+  created_at   DateTime   @default(now())
+  updated_at   DateTime   @updatedAt
+
+  hotel    Hotel     @relation(fields: [hotel_id], references: [id], onDelete: Cascade)
+  bookings Booking[]
+  invoices Invoice[]
+  messages Message[]
+
+  @@map("guests")
+}
+
+model Booking {
+  id             String        @id @default(cuid())
+  hotel_id       String
+  booking_number String        @unique
+  guest_id       String?
+  room_id        String?
+  guest_type     GuestType     @default(international)
+  check_in       DateTime
+  check_out      DateTime
+  status         BookingStatus @default(confirmed)
+  nights         Int
+  total_amount   Float
+  notes          String?
+  payment_status PaymentStatus @default(pending)
+  deposit_amount Float         @default(0)
+  created_by     String?
+  created_at     DateTime      @default(now())
+  updated_at     DateTime      @updatedAt
+
+  hotel    Hotel     @relation(fields: [hotel_id], references: [id], onDelete: Cascade)
+  guest    Guest?    @relation(fields: [guest_id], references: [id], onDelete: SetNull)
+  room     Room?     @relation(fields: [room_id], references: [id], onDelete: SetNull)
+  invoices Invoice[]
+  tasks    HousekeepingTask[]
+
+  @@map("bookings")
+}
+
+model Invoice {
+  id             String        @id @default(cuid())
+  hotel_id       String
+  invoice_number String        @unique
+  guest_id       String?
+  booking_id     String?
+  amount         Float
+  tax            Float
+  total          Float
+  amount_paid    Float         @default(0)
+  status         InvoiceStatus @default(pending)
+  due_date       DateTime?
+  paid_date      DateTime?
+  payment_method String?
+  notes          String?
+  created_at     DateTime      @default(now())
+  updated_at     DateTime      @updatedAt
+
+  hotel      Hotel             @relation(fields: [hotel_id], references: [id], onDelete: Cascade)
+  guest      Guest?            @relation(fields: [guest_id], references: [id], onDelete: SetNull)
+  booking    Booking?          @relation(fields: [booking_id], references: [id], onDelete: SetNull)
+  line_items InvoiceLineItem[]
+
+  @@map("invoices")
+}
+
+model InvoiceLineItem {
+  id          String       @id @default(cuid())
+  invoice_id  String
+  description String
+  amount      Float
+  quantity    Int          @default(1)
+  type        LineItemType @default(charge)
+
+  invoice Invoice @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
+
+  @@map("invoice_line_items")
+}
+
+model HousekeepingTask {
+  id                   String       @id @default(cuid())
+  hotel_id             String
+  task_number          String       @unique
+  room_id              String
+  booking_id           String?
+  type                 TaskType
+  status               TaskStatus   @default(pending)
+  priority             TaskPriority @default(medium)
+  description          String
+  assigned_to          String?
+  due_at               DateTime?
+  automation_triggered Boolean      @default(false)
+  notes                String?
+  started_at           DateTime?
+  completed_at         DateTime?
+  created_at           DateTime     @default(now())
+  updated_at           DateTime     @updatedAt
+
+  hotel    Hotel        @relation(fields: [hotel_id], references: [id], onDelete: Cascade)
+  room     Room         @relation(fields: [room_id], references: [id], onDelete: Cascade)
+  booking  Booking?     @relation(fields: [booking_id], references: [id], onDelete: SetNull)
+  assignee StaffMember? @relation("TaskAssignee", fields: [assigned_to], references: [id], onDelete: SetNull)
+
+  @@map("housekeeping_tasks")
+}
+
+model StaffMember {
+  id         String      @id @default(cuid())
+  hotel_id   String
+  user_id    String?     @unique
+  full_name  String
+  email      String?
+  phone      String?
+  role       StaffRole
+  status     StaffStatus @default(active)
+  shift      String?
+  hire_date  DateTime?
+  created_at DateTime    @default(now())
+  updated_at DateTime    @updatedAt
+
+  hotel         Hotel              @relation(fields: [hotel_id], references: [id], onDelete: Cascade)
+  user          User?              @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  assignedTasks HousekeepingTask[] @relation("TaskAssignee")
+
+  @@map("staff")
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  hotel_id    String
+  amount      Float
+  category    String
+  description String
+  date        DateTime
+  vendor      String?
+  created_by  String?
+  created_at  DateTime @default(now())
+
+  hotel Hotel @relation(fields: [hotel_id], references: [id], onDelete: Cascade)
+
+  @@map("expenses")
+}
+
+model Automation {
+  id                String   @id @default(cuid())
+  hotel_id          String
+  name              String
+  description       String   @default("")
+  // Matches a frontend StoreEventType, e.g. "booking.checked_out".
+  // Stored as a plain string (not an enum) because the values contain dots.
+  trigger           String
+  action            String
+  enabled           Boolean  @default(true)
+  config            Json?
+  execution_count   Int      @default(0)
+  last_triggered_at DateTime?
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  hotel      Hotel                 @relation(fields: [hotel_id], references: [id], onDelete: Cascade)
+  executions AutomationExecution[]
+
+  @@map("automations")
+}
+
+model AutomationExecution {
+  id            String          @id @default(cuid())
+  automation_id String
+  hotel_id      String
+  event         String
+  status        ExecutionStatus @default(completed)
+  detail        String?
+  created_at    DateTime        @default(now())
+
+  automation Automation @relation(fields: [automation_id], references: [id], onDelete: Cascade)
+  hotel      Hotel      @relation(fields: [hotel_id], references: [id], onDelete: Cascade)
+
+  @@map("automation_executions")
+}
+
+model Notification {
+  id         String           @id @default(cuid())
+  hotel_id   String
+  user_id    String?
+  type       NotificationType @default(info)
+  title      String
+  message    String
+  link       String?
+  is_read    Boolean          @default(false)
+  created_at DateTime         @default(now())
+
+  hotel Hotel @relation(fields: [hotel_id], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model Message {
+  id          String           @id @default(cuid())
+  hotel_id    String
+  guest_id    String
+  guest_name  String?
+  guest_email String?
+  guest_phone String?
+  subject     String?
+  message     String
+  direction   MessageDirection @default(outbound)
+  channel     MessageChannel?
+  status      MessageStatus    @default(sent)
+  priority    MessagePriority?
+  assigned_to String?
+  created_at  DateTime         @default(now())
+  updated_at  DateTime         @updatedAt
+
+  hotel Hotel @relation(fields: [hotel_id], references: [id], onDelete: Cascade)
+  guest Guest @relation(fields: [guest_id], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+model ActivityLog {
+  id          String   @id @default(cuid())
+  hotel_id    String
+  user_id     String?
+  user_name   String?
+  action      String
+  details     String
+  entity_type String
+  entity_id   String?
+  created_at  DateTime @default(now())
+
+  hotel Hotel @relation(fields: [hotel_id], references: [id], onDelete: Cascade)
+
+  @@map("activity_logs")
+}
+
+model HotelSettings {
+  id             String   @id @default(cuid())
+  hotel_id       String   @unique
+  currency       String   @default("USD")
+  tax_rate       Float    @default(0.10)
+  check_in_time  String   @default("14:00")
+  check_out_time String   @default("11:00")
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  hotel Hotel @relation(fields: [hotel_id], references: [id], onDelete: Cascade)
+
+  @@map("hotel_settings")
+}
+
+/// Persisted counters so booking / invoice / task numbers never repeat.
+/// Numbers are allocated with an atomic increment inside a transaction
+/// (see src/services/counters.ts). kind is 'booking' | 'invoice' | 'task'.
+model Counter {
+  id       String @id @default(cuid())
+  hotel_id String
+  kind     String
+  value    Int    @default(0)
+
+  hotel Hotel @relation(fields: [hotel_id], references: [id], onDelete: Cascade)
+
+  @@unique([hotel_id, kind])
+  @@map("counters")
+}

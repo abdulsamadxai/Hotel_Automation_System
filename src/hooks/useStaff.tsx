@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { mockStore, type StaffCreateInput, type StaffWithJoins } from "@/lib/mockStore";
-import type { StaffMember as CanonicalStaff, StaffRole, StaffStatus } from "@/lib/types";
+import { api, hotelParams, writeHotelParams } from "@/lib/api";
+import type { StaffCreateInput, StaffMember as CanonicalStaff, StaffRole, StaffStatus, StaffWithJoins } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -22,7 +22,7 @@ export function useStaff() {
     queryKey: ["staff", hotelId],
     queryFn: async () => {
       if (!hotelId) return [];
-      return await mockStore.staff.getAll(hotelId);
+      return await api.get<StaffWithJoins[]>("/api/staff", hotelParams(hotelId));
     },
     enabled: !!hotelId,
   });
@@ -32,23 +32,24 @@ export function useGlobalStaff() {
   return useQuery({
     queryKey: ['global-staff'],
     queryFn: async () => {
-      return await mockStore.staff.getAll('global');
+      // Super-admin with no ?hotel_id= sees staff across all hotels.
+      return await api.get<StaffWithJoins[]>("/api/staff");
     }
   });
 }
 
 export function useCreateStaff() {
   const queryClient = useQueryClient();
-  const { hotelId: currentHotelId } = useAuth();
+  const { role, hotelId } = useAuth();
 
   return useMutation({
     // Staff record creation only — it creates NO login user and NO password.
     // A login account is created via sign-up (auth), not from this form.
     mutationFn: async (staff: StaffCreateInput) => {
-      const hotelId = currentHotelId;
-      if (!hotelId) throw new Error("Could not determine hotel property context.");
-
-      return await mockStore.staff.create(staff, hotelId);
+      return await api.post<StaffMember>("/api/staff", {
+        ...staff,
+        ...writeHotelParams(role, hotelId),
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff"] });
@@ -65,7 +66,7 @@ export function useUpdateStaff() {
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<StaffMember> & { id: string }) => {
-      return await mockStore.staff.update(id, updates);
+      return await api.patch<StaffMember>(`/api/staff/${id}`, updates);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff"] });
@@ -82,7 +83,7 @@ export function useUpdateStaffStatus() {
 
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: StaffStatus }) => {
-      return await mockStore.staff.update(id, { status });
+      return await api.patch<StaffMember>(`/api/staff/${id}`, { status });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff"] });
@@ -99,7 +100,7 @@ export function useDeleteStaff() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      await mockStore.staff.delete(id);
+      await api.del(`/api/staff/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff"] });

@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Shield, Copy, CheckCircle2, Zap, Loader2, Users } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { mockStore } from "@/lib/mockStore";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import { useHotel } from "@/hooks/useHotels";
 import { cn } from "@/lib/utils";
 
 interface HotelCodeDisplayProps {
@@ -16,15 +15,8 @@ export function HotelCodeDisplay({ className, showManageButton = false }: HotelC
     const { hotelId, role } = useAuth();
     const [copied, setCopied] = useState(false);
 
-    // Read from the persisted store, not the static seed copy.
-    const { data: hotel, isLoading } = useQuery({
-        queryKey: ['hotel-details', hotelId],
-        queryFn: async () => {
-            if (!hotelId || hotelId === 'global') return null;
-            return await mockStore.hotels.getById(hotelId) ?? null;
-        },
-        enabled: !!hotelId,
-    });
+    // Read from the API, not the static seed copy.
+    const { data: hotel, isLoading } = useHotel(hotelId === 'global' ? null : hotelId);
 
     const copyToClipboard = () => {
         if (hotel?.access_code) {

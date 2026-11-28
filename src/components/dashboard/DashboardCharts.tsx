@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import {
   Area,
   AreaChart,
@@ -11,7 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { BookingWithJoins, InvoiceWithJoins } from "@/lib/mockStore";
+import type { BookingWithJoins, InvoiceWithJoins } from "@/lib/types";
 import type { Currency } from "@/utils/currency";
 import { formatAndConvert } from "@/utils/currency";
 import { dayKey, daysEndingOn, shortDayLabel } from "./dashboardDates";
@@ -20,6 +20,7 @@ interface ChartTooltipProps {
   active?: boolean;
   payload?: ReadonlyArray<{ value?: number | string; name?: string }>;
   label?: string;
+  currency?: Currency;
 }
 
 function OccupancyTooltip({ active, payload, label }: ChartTooltipProps) {
@@ -35,14 +36,17 @@ function OccupancyTooltip({ active, payload, label }: ChartTooltipProps) {
   );
 }
 
-function RevenueTooltip({ active, payload, label }: ChartTooltipProps) {
+function RevenueTooltip({ active, payload, label, currency }: ChartTooltipProps) {
   if (!active || !payload || payload.length === 0) return null;
   const value = payload[0]?.value;
   return (
     <div className="rounded-lg border border-border bg-background px-3 py-2 text-xs shadow-lg">
       <p className="font-medium">{label}</p>
       <p className="text-muted-foreground">
-        Revenue: {typeof value === "number" ? `$${value.toFixed(2)}` : "—"}
+        Revenue:{" "}
+        {typeof value === "number"
+          ? formatAndConvert(value, currency ?? "USD")
+          : "—"}
       </p>
     </div>
   );
@@ -55,6 +59,13 @@ interface DashboardChartsProps {
   /** Last day of both ranges — the latest date present in the records. */
   anchorDate: Date;
   currency: Currency;
+  /**
+   * Trend arrays from GET /api/dashboard/summary. When supplied they are
+   * the data source; otherwise the trends are computed from bookings /
+   * invoices as before.
+   */
+  occupancyTrend?: Array<{ date: string; rate: number }>;
+  revenueTrend?: Array<{ date: string; amount: number }>;
 }
 
 /**
@@ -69,8 +80,20 @@ export function DashboardCharts({
   totalRooms,
   anchorDate,
   currency,
+  occupancyTrend,
+  revenueTrend,
 }: DashboardChartsProps) {
   const occupancyData = useMemo(() => {
+    if (occupancyTrend) {
+      return occupancyTrend.map((point) => {
+        const day = parseISO(point.date);
+        return {
+          day: shortDayLabel(day),
+          fullDay: format(day, "MMM d, yyyy"),
+          occupancy: point.rate,
+        };
+      });
+    }
     return daysEndingOn(anchorDate, 14).map((day) => {
       const key = dayKey(day);
       const staying = bookings.filter((b) => {
@@ -87,9 +110,19 @@ export function DashboardCharts({
         occupancy: totalRooms > 0 ? Math.round((staying / totalRooms) * 100) : 0,
       };
     });
-  }, [bookings, totalRooms, anchorDate]);
+  }, [bookings, totalRooms, anchorDate, occupancyTrend]);
 
   const revenueData = useMemo(() => {
+    if (revenueTrend) {
+      return revenueTrend.map((point) => {
+        const day = parseISO(point.date);
+        return {
+          day: shortDayLabel(day),
+          fullDay: format(day, "MMM d, yyyy"),
+          revenue: Math.round(point.amount * 100) / 100,
+        };
+      });
+    }
     return daysEndingOn(anchorDate, 30).map((day) => {
       const key = dayKey(day);
       const revenue = invoices
@@ -101,7 +134,7 @@ export function DashboardCharts({
         revenue: Math.round(revenue * 100) / 100,
       };
     });
-  }, [invoices, anchorDate]);
+  }, [invoices, anchorDate, revenueTrend]);
 
   const rangeLabel = `ending ${format(anchorDate, "MMM d, yyyy")}`;
   const totalRevenue30d = revenueData.reduce((sum, d) => sum + d.revenue, 0);
@@ -111,7 +144,7 @@ export function DashboardCharts({
       <div className="glass-card p-5">
         <div className="flex items-start justify-between gap-2 mb-1">
           <div>
-            <h3 className="font-semibold">Occupancy trend</h3>
+            <h3 className="text-base font-semibold">Occupancy trend</h3>
             <p className="text-xs text-muted-foreground">
               Last 14 days, {rangeLabel} — rooms with a guest staying that
               night, from bookings
@@ -123,13 +156,13 @@ export function DashboardCharts({
             No rooms yet, so occupancy cannot be computed.
           </p>
         ) : (
-          <div className="h-64 mt-4">
+          <div className="h-56 sm:h-64 mt-4">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={occupancyData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                <XAxis dataKey="day" tick={{ fontSize: 11 }} interval={1} />
+                <CartesianGrid strokeDasharray="3 3" opacity={0.2} stroke="hsl(var(--border))" />
+                <XAxis dataKey="day" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} interval={1} />
                 <YAxis
-                  tick={{ fontSize: 11 }}
+                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
                   domain={[0, 100]}
                   tickFormatter={(value: number) => `${value}%`}
                 />
@@ -138,8 +171,8 @@ export function DashboardCharts({
                   type="monotone"
                   dataKey="occupancy"
                   name="Occupancy"
-                  stroke="#0ea371"
-                  fill="#0ea371"
+                  stroke="hsl(var(--primary))"
+                  fill="hsl(var(--primary))"
                   fillOpacity={0.25}
                   strokeWidth={2}
                 />
@@ -152,7 +185,7 @@ export function DashboardCharts({
       <div className="glass-card p-5">
         <div className="flex items-start justify-between gap-2 mb-1">
           <div>
-            <h3 className="font-semibold">Revenue trend</h3>
+            <h3 className="text-base font-semibold">Revenue trend</h3>
             <p className="text-xs text-muted-foreground">
               Last 30 days, {rangeLabel} — invoice totals by paid date
             </p>
@@ -161,14 +194,17 @@ export function DashboardCharts({
             {formatAndConvert(totalRevenue30d, currency)}
           </p>
         </div>
-        <div className="h-64 mt-4">
+        <div className="h-56 sm:h-64 mt-4">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={revenueData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-              <XAxis dataKey="day" tick={{ fontSize: 11 }} interval={4} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip content={<RevenueTooltip />} />
-              <Bar dataKey="revenue" name="Revenue" fill="#3b82f6" radius={[3, 3, 0, 0]} />
+              <CartesianGrid strokeDasharray="3 3" opacity={0.2} stroke="hsl(var(--border))" />
+              <XAxis dataKey="day" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} interval={4} />
+              <YAxis
+                tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                domain={[0, "auto"]}
+              />
+              <Tooltip content={<RevenueTooltip currency={currency} />} />
+              <Bar dataKey="revenue" name="Revenue" fill="hsl(var(--status-info))" radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

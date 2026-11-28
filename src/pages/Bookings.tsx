@@ -142,15 +142,13 @@ export default function Bookings() {
     }
     try {
       if (editingBooking) {
-        // Re-save the total recomputed from the canonical nightly price.
-        // The store does not recompute totals on update, so the page must.
+        // Nights and the total are recomputed server-side from the room's
+        // price_per_night — only the dates / room are sent.
         await updateBooking.mutateAsync({
           id: editingBooking.id,
           check_in: formData.checkIn,
           check_out: formData.checkOut,
           room_id: formData.roomId,
-          nights,
-          total_amount: totalAmount,
         });
       } else {
         let customerId = "";
@@ -202,7 +200,7 @@ export default function Bookings() {
           paymentStatus = "partially_paid";
         }
 
-        // The store computes the authoritative total as
+        // The server computes the authoritative total as
         // price_per_night x nights and throws on bad dates, overlapping
         // bookings for the room, or a blocked guest.
         await createBooking.mutateAsync({
@@ -210,7 +208,6 @@ export default function Bookings() {
           room_id: formData.roomId,
           check_in: formData.checkIn,
           check_out: formData.checkOut,
-          total_amount: totalAmount,
           status: "confirmed",
           guest_type: formData.guestType,
           payment_status: paymentStatus,
@@ -311,7 +308,7 @@ export default function Bookings() {
                 {!editingBooking && <p className="text-xs text-muted-foreground">This creates a CRM entry or reuses existing if phone matches.</p>}
               </div>
               {!editingBooking && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Email</Label>
                     <Input
@@ -371,7 +368,7 @@ export default function Bookings() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Check-in *</Label>
                     <Input
@@ -473,7 +470,7 @@ export default function Bookings() {
               key={item.status}
               onClick={() => handleStatusFilter(item.status)}
               className={`glass-card p-3 text-left transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] ${activeStatusFilter === item.status
-                ? "ring-2 ring-primary shadow-glow border-primary/50"
+                ? "ring-2 ring-primary shadow-md border-primary/50"
                 : "hover:border-primary/30"
                 }`}
             >
@@ -537,7 +534,7 @@ export default function Bookings() {
                         <span className="font-medium flex items-center gap-2">
                           {booking.guest?.name || "N/A"}
                           {booking.guest?.tags?.includes('vip') && (
-                            <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider border border-amber-200">
+                            <span className="bg-status-warning/15 text-status-warning text-xs font-bold px-1.5 py-0.5 rounded uppercase tracking-wider border border-status-warning/30">
                               VIP
                             </span>
                           )}
@@ -557,7 +554,7 @@ export default function Bookings() {
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Button variant="ghost" size="icon-sm">
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -589,20 +586,22 @@ export default function Bookings() {
                           )}
                           {(booking.status === "pending" || booking.status === "confirmed") && (
                             <DropdownMenuItem
-                              className="gap-2 text-orange-600"
+                              className="gap-2 text-status-warning"
                               onClick={() => handleStatusChange(booking.id, "cancelled")}
                             >
                               <XCircle className="h-4 w-4" />
                               Cancel
                             </DropdownMenuItem>
                           )}
-                          <DropdownMenuItem
-                            className="gap-2 text-destructive"
-                            onClick={() => handleDeleteBooking(booking.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            Delete
-                          </DropdownMenuItem>
+                          {(booking.status === "pending" || booking.status === "confirmed" || booking.status === "cancelled") && (
+                            <DropdownMenuItem
+                              className="gap-2 text-destructive"
+                              onClick={() => handleDeleteBooking(booking.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

@@ -16,7 +16,7 @@ export function TodayOverview({ checkIns, checkOuts, newBookings, date = new Dat
     <div className="glass-card p-5">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="font-semibold">Today&apos;s Overview</h3>
+          <h3 className="text-base font-semibold">Today&apos;s Overview</h3>
           <p className="text-xs text-muted-foreground">{format(date, "EEEE, MMM d, yyyy")}</p>
         </div>
         <Button variant="ghost" size="sm" className="text-xs gap-1" asChild>
@@ -25,24 +25,24 @@ export function TodayOverview({ checkIns, checkOuts, newBookings, date = new Dat
           </Link>
         </Button>
       </div>
-      <div className="grid grid-cols-3 gap-4">
-        <div className="text-center p-4 rounded-xl bg-status-info/10 border border-status-info/20">
-          <div className="h-10 w-10 mx-auto rounded-lg bg-status-info/20 flex items-center justify-center text-status-info mb-2">
-            <LogIn className="h-5 w-5" />
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
+        <div className="text-center p-3 sm:p-4 rounded-xl bg-status-info/10 border border-status-info/20">
+          <div className="h-8 w-8 sm:h-10 sm:w-10 mx-auto rounded-lg bg-status-info/20 flex items-center justify-center text-status-info mb-2">
+            <LogIn className="h-4 w-4 sm:h-5 sm:w-5" />
           </div>
           <p className="text-2xl font-bold text-status-info">{checkIns}</p>
           <p className="text-xs text-muted-foreground">Check-ins</p>
         </div>
-        <div className="text-center p-4 rounded-xl bg-status-pending/10 border border-status-pending/20">
-          <div className="h-10 w-10 mx-auto rounded-lg bg-status-pending/20 flex items-center justify-center text-status-pending mb-2">
-            <LogOut className="h-5 w-5" />
+        <div className="text-center p-3 sm:p-4 rounded-xl bg-status-pending/10 border border-status-pending/20">
+          <div className="h-8 w-8 sm:h-10 sm:w-10 mx-auto rounded-lg bg-status-pending/20 flex items-center justify-center text-status-pending mb-2">
+            <LogOut className="h-4 w-4 sm:h-5 sm:w-5" />
           </div>
           <p className="text-2xl font-bold text-status-pending">{checkOuts}</p>
           <p className="text-xs text-muted-foreground">Check-outs</p>
         </div>
-        <div className="text-center p-4 rounded-xl bg-primary/10 border border-primary/20">
-          <div className="h-10 w-10 mx-auto rounded-lg bg-primary/20 flex items-center justify-center text-primary mb-2">
-            <CalendarCheck className="h-5 w-5" />
+        <div className="text-center p-3 sm:p-4 rounded-xl bg-primary/10 border border-primary/20">
+          <div className="h-8 w-8 sm:h-10 sm:w-10 mx-auto rounded-lg bg-primary/20 flex items-center justify-center text-primary mb-2">
+            <CalendarCheck className="h-4 w-4 sm:h-5 sm:w-5" />
           </div>
           <p className="text-2xl font-bold text-primary">{newBookings}</p>
           <p className="text-xs text-muted-foreground">New Bookings</p>

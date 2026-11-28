@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, hotelParams } from "@/lib/api";
+import { api, hotelParams, writeHotelParams } from "@/lib/api";
 import type {
   InvoiceCreateInput,
   InvoiceStatus,
@@ -19,10 +19,7 @@ export interface InvoiceUpdate {
   status?: InvoiceStatus;
   amount?: number;
   tax?: number;
-  total?: number;
-  amount_paid?: number;
   line_items?: LineItem[];
-  paid_date?: string | null;
   due_date?: string | null;
   payment_method?: string;
   notes?: string;
@@ -47,12 +44,16 @@ export function useInvoices() {
 
 export function useCreateInvoice() {
   const queryClient = useQueryClient();
+  const { role, hotelId } = useAuth();
 
   return useMutation({
     mutationFn: async (invoice: InvoiceCreateInput) => {
       // The server computes tax (hotel tax_rate, unless overridden) and
       // the authoritative total = amount + tax.
-      return await api.post<Invoice>("/api/invoices", invoice);
+      return await api.post<Invoice>("/api/invoices", {
+        ...invoice,
+        ...writeHotelParams(role, hotelId),
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
@@ -68,7 +69,8 @@ export function useCreateInvoice() {
  * Edit an invoice's line items / amounts (Billing Save button) or mark it
  * paid. Paying goes through POST /:id/pay with the remaining balance —
  * never by setting `status: 'paid'` directly, so the server stays the
- * authority on `amount_paid` vs `total`.
+ * authority on `amount_paid` vs `total`. An already fully-paid invoice
+ * is reported as such instead of pretending an update happened.
  */
 export function useUpdateInvoice() {
   const queryClient = useQueryClient();
@@ -79,11 +81,14 @@ export function useUpdateInvoice() {
         const current = await api.get<Invoice>(`/api/invoices/${id}`);
         const remaining =
           Math.round((current.total - current.amount_paid) * 100) / 100;
-        if (remaining <= 0) return current;
-        return await api.post<Invoice>(`/api/invoices/${id}/pay`, {
-          amount: remaining,
-          payment_method: updates.payment_method,
-        });
+        if (remaining <= 0) return { invoice: current, alreadyPaid: true };
+        return {
+          invoice: await api.post<Invoice>(`/api/invoices/${id}/pay`, {
+            amount: remaining,
+            payment_method: updates.payment_method,
+          }),
+          alreadyPaid: false,
+        };
       }
 
       // Line-item / amount edits: the server recomputes total = amount + tax.
@@ -94,11 +99,21 @@ export function useUpdateInvoice() {
       if (updates.due_date !== undefined) patch.due_date = updates.due_date;
       if (updates.payment_method !== undefined) patch.payment_method = updates.payment_method;
       if (updates.notes !== undefined) patch.notes = updates.notes;
-      return await api.patch<Invoice>(`/api/invoices/${id}`, patch);
+      return {
+        invoice: await api.patch<Invoice>(`/api/invoices/${id}`, patch),
+        alreadyPaid: false,
+      };
     },
-    onSuccess: () => {
+    onSuccess: ({ alreadyPaid }) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      toast({ title: "Invoice updated successfully" });
+      if (alreadyPaid) {
+        toast({
+          title: "Already paid",
+          description: "This invoice is already fully paid — no payment was recorded.",
+        });
+      } else {
+        toast({ title: "Invoice updated successfully" });
+      }
     },
     onError: (error: unknown) => {
       toast({ title: "Error updating invoice", description: toErrorMessage(error), variant: "destructive" });

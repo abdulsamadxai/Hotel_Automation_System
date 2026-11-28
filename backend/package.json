@@ -1,1 +1,42 @@
-{"dependencies":{"@prisma/client":"^6.19.3","bcryptjs":"^2.4.3","cors":"^2.8.5","dotenv":"^16.4.5","express":"^4.21.2","helmet":"^8.0.0","jsonwebtoken":"^9.0.2","morgan":"^1.10.0","zod":"^3.25.76"},"description":"Real backend for the Hotel Automation System: Express + TypeScript + Prisma + PostgreSQL.","devDependencies":{"@types/bcryptjs":"^2.4.6","@types/cors":"^2.8.17","@types/express":"^4.17.21","@types/jsonwebtoken":"^9.0.7","@types/morgan":"^1.9.9","@types/node":"^22.16.5","prisma":"^6.19.3","tsx":"^4.19.2","typescript":"^5.8.3"},"name":"hotel-automation-api","private":true,"scripts":{"build":"tsc","db:smoke":"npm run prisma:generate:sqlite && npm run prisma:push:sqlite","dev":"tsx watch src/index.ts","prisma:generate":"prisma generate","prisma:generate:sqlite":"prisma generate --schema prisma/schema.sqlite.prisma","prisma:migrate":"prisma migrate dev","prisma:push:sqlite":"prisma db push --schema prisma/schema.sqlite.prisma","seed":"tsx src/seed.ts","start":"node dist/index.js","typecheck":"tsc --noEmit","typecheck:seed":"tsc --noEmit --strict --esModuleInterop --skipLibCheck --module esnext --moduleResolution bundler --target es2022 src/seed.ts"},"type":"module","version":"1.0.0"}
+{
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/morgan": "^1.9.9",
+    "@types/node": "^22.16.5",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "typescript": "^5.8.3",
+    "zod": "^3.25.76"
+  },
+  "description": "Real backend for the Hotel Automation System: Express + TypeScript + Prisma + PostgreSQL.",
+  "devDependencies": {
+    "prisma": "^6.19.3",
+    "tsx": "^4.19.2"
+  },
+  "name": "hotel-automation-api",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "db:smoke": "npm run prisma:generate:sqlite && npm run prisma:push:sqlite",
+    "dev": "tsx watch src/index.ts",
+    "prisma:generate": "prisma generate",
+    "prisma:generate:sqlite": "prisma generate --schema prisma/schema.sqlite.prisma",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:push:sqlite": "prisma db push --schema prisma/schema.sqlite.prisma",
+    "seed": "tsx src/seed.ts",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "typecheck:seed": "tsc --noEmit --strict --esModuleInterop --skipLibCheck --module esnext --moduleResolution bundler --target es2022 src/seed.ts"
+  },
+  "type": "module",
+  "version": "1.0.0"
+}

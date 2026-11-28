@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, hotelParams } from "@/lib/api";
+import { api, hotelParams, writeHotelParams } from "@/lib/api";
 import type { Automation as CanonicalAutomation, AutomationAction, AutomationCreateInput, AutomationExecution, StoreEventType } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -62,10 +62,14 @@ export function useToggleAutomation() {
 
 export function useCreateAutomation() {
   const queryClient = useQueryClient();
+  const { role, hotelId } = useAuth();
 
   return useMutation({
     mutationFn: async (automation: AutomationCreateInput) => {
-      return await api.post<AutomationRule>("/api/automations", automation);
+      return await api.post<AutomationRule>("/api/automations", {
+        ...automation,
+        ...writeHotelParams(role, hotelId),
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["automations"] });

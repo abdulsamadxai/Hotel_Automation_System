@@ -165,11 +165,18 @@ export default function Login() {
             </Button>
           </form>
 
-          <div className="mt-6 text-center text-sm">
-            <span className="text-muted-foreground">Don't have an account? </span>
-            <Link to="/signup" className="text-primary hover:underline font-medium">
-              Sign up
-            </Link>
+          <div className="mt-6 text-center text-sm space-y-2">
+            <div>
+              <span className="text-muted-foreground">Don't have an account? </span>
+              <Link to="/signup" className="text-primary hover:underline font-medium">
+                Sign up
+              </Link>
+            </div>
+            <div>
+              <Link to="/admin/login" className="text-muted-foreground hover:underline">
+                Administrator? Sign in to the admin dashboard
+              </Link>
+            </div>
           </div>
         </div>
 

@@ -142,6 +142,21 @@ export const userPatchSchema = z.object({
   role: userRoleEnum.optional(),
 });
 
+/**
+ * Admin-created login user. Unlike signup, any role may be created here —
+ * including owner, which self-registration deliberately forbids ("Owner
+ * accounts are created by an administrator"). hotel_id is required for
+ * every role except super_admin (enforced in the route, where the hotel
+ * must also exist).
+ */
+export const createUserSchema = z.object({
+  full_name: z.string().min(1),
+  email: z.string().email(),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  role: userRoleEnum,
+  hotel_id: optionalHotelId,
+});
+
 // --- Rooms ----------------------------------------------------------------
 
 export const roomCreateSchema = z.object({

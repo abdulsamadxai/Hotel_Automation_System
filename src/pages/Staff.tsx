@@ -177,7 +177,7 @@ export default function Staff() {
                   <DialogDescription>
                     {editingStaff
                       ? "Update the details and permissions for this staff member."
-                      : "Register a new staff member. This creates a staff record only — no login account is created here; login accounts are created via sign-up."}
+                      : "Register a new staff member. This creates a staff record only — no login account is created here; login accounts (including owners) are created in the admin dashboard."}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">

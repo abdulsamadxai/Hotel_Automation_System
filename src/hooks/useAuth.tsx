@@ -228,9 +228,19 @@ export function useAuth() {
  */
 export function useUpdatePassword() {
   return useMutation({
-    mutationFn: async ({ userId, newPassword }: { userId: string; newPassword: string }) => {
+    mutationFn: async ({
+      userId,
+      newPassword,
+      currentPassword,
+    }: {
+      userId: string;
+      newPassword: string;
+      /** Required by the server when changing your own password; omit when an admin resets someone else's. */
+      currentPassword?: string;
+    }) => {
       await api.post(`/api/users/${userId}/change-password`, {
         new_password: newPassword,
+        ...(currentPassword ? { current_password: currentPassword } : {}),
       });
     },
     onSuccess: () => {

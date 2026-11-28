@@ -47,7 +47,7 @@ export default function Expenses() {
         date: new Date().toISOString().split('T')[0],
     });
 
-    const { data: expenses = [], isLoading } = useExpenses();
+    const { data: expenses = [], isLoading, isError } = useExpenses();
     const createExpense = useCreateExpense();
     const deleteExpense = useDeleteExpense();
 
@@ -252,7 +252,14 @@ export default function Expenses() {
                                     </TableCell>
                                 </TableRow>
                             ))}
-                            {filteredExpenses.length === 0 && (
+                            {isError && (
+                                <TableRow>
+                                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                                        Expenses are managed by the hotel owner.
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                            {!isError && filteredExpenses.length === 0 && (
                                 <TableRow>
                                     <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                                         No expenses found.

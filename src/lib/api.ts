@@ -9,10 +9,12 @@
 //   `{token, user}` unwrapped, so `request` unwraps `data` only when it is
 //   present.
 
+import type { UserRole } from './types';
+
 export const TOKEN_KEY = 'has:token';
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001';
+  import.meta.env.VITE_API_BASE_URL?.trim() || 'http://localhost:3001';
 
 /** Error surfaced from the API (or from the transport itself). */
 export class ApiError extends Error {
@@ -142,6 +144,23 @@ export function hotelParams(
   hotelId: string | null | undefined,
 ): Record<string, string | undefined> {
   return hotelId && hotelId !== 'global' ? { hotel_id: hotelId } : {};
+}
+
+/**
+ * `hotel_id` for create bodies. super_admin must supply it (the server
+ * 400s "hotel_id is required" otherwise) and must have picked a hotel
+ * first — `useAuth().hotelId` is the selected hotel for super_admin
+ * (persisted in localStorage by the dashboard picker) and 'global'
+ * while none is picked. Everyone else is pinned to their own hotel
+ * server-side, so nothing is sent for them.
+ */
+export function writeHotelParams(
+  role: UserRole,
+  hotelId: string | null | undefined,
+): { hotel_id?: string } {
+  return role === 'super_admin' && hotelId && hotelId !== 'global'
+    ? { hotel_id: hotelId }
+    : {};
 }
 
 export const api = {

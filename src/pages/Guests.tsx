@@ -11,6 +11,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+  TableNumeric,
   TableRow,
 } from "@/components/ui/table";
 import {
@@ -165,7 +166,7 @@ export default function Guests() {
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Email</Label>
                     <Input
@@ -184,7 +185,7 @@ export default function Guests() {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Nationality</Label>
                     <Input
@@ -302,12 +303,12 @@ export default function Guests() {
                       <p className="text-sm">{guest.email || "-"}</p>
                       <p className="text-xs text-muted-foreground">{guest.phone || "-"}</p>
                       {(guest.nationality || guest.id_number) && (
-                        <p className="text-[10px] text-primary/70 mt-1">
+                        <p className="text-xs text-primary/70 mt-1">
                           {guest.nationality} {guest.id_number ? `(${guest.id_number})` : ''}
                         </p>
                       )}
                     </TableCell>
-                    <TableCell className="font-medium">{guest.total_stays}</TableCell>
+                    <TableNumeric className="font-medium">{guest.total_stays}</TableNumeric>
                     <TableCell className="font-medium">
                       {formatAndConvert(guest.total_spent, currency)}
                     </TableCell>

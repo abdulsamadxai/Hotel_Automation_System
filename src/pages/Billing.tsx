@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { api } from "@/lib/api";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -102,19 +103,24 @@ export default function Billing() {
     }
 
     setIsEmailing(true);
-    toast({
-      title: "Generating PDF...",
-      description: `Preparing invoice #${invoice.invoice_number} for delivery.`,
-    });
-
-    // Simulate PDF generation and transport (no real email is sent).
-    await new Promise(r => setTimeout(r, 2000));
-
-    setIsEmailing(false);
-    toast({
-      title: "Invoice Sent Successfully",
-      description: `A PDF version of invoice ${invoice.invoice_number} has been sent to ${invoice.guest.email}.`,
-    });
+    try {
+      // Real send: POST /api/invoices/:id/send-email. The server fails
+      // with 502 when no email provider is configured, so the toast below
+      // only ever claims success when the email actually went out.
+      await api.post(`/api/invoices/${invoice.id}/send-email`, {});
+      toast({
+        title: "Invoice Sent Successfully",
+        description: `Invoice ${invoice.invoice_number} has been sent to ${invoice.guest.email}.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Could not send invoice",
+        description: error instanceof Error ? error.message : "Email is not configured.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsEmailing(false);
+    }
   };
 
 
@@ -474,12 +480,12 @@ export default function Billing() {
           {/* Invoice Editor (Viewing/Editing Existing) */}
           {selectedInvoice && (
             <div className="lg:col-span-2 glass-card p-4 animate-in slide-in-from-right">
-              <div className="flex justify-between items-center mb-4 border-b pb-2">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4 border-b pb-2">
                 <div>
                   <h3 className="text-lg font-bold">{selectedInvoice.invoice_number}</h3>
                   <p className="text-sm text-muted-foreground">Guest: {selectedInvoice.guest?.name}</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button size="sm" variant="outline" className="gap-2" onClick={() => handleEmail(selectedInvoice)}>
                     <Mail className="h-4 w-4" /> Email
                   </Button>

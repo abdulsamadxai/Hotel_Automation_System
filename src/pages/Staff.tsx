@@ -353,7 +353,7 @@ export default function Staff() {
                                 value={member.status || 'off_duty'}
                                 onValueChange={(v) => handleStatusChange(member.id, v as StaffStatus)}
                               >
-                                <SelectTrigger className="h-6 w-auto border-0 p-0">
+                                <SelectTrigger className="h-10 w-auto border-0 p-0">
                                   <Badge variant="outline" className={statusColors[member.status || 'off_duty']}>
                                     {(member.status || 'off_duty').replace("_", " ")}
                                   </Badge>

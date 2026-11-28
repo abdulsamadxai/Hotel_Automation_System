@@ -79,7 +79,7 @@ export async function createBooking(
       Number.isNaN(checkOut.getTime()) ||
       checkOut <= checkIn
     ) {
-      throw new ApiError(400, 'Check-out date must be after check-in date');
+      throw new ApiError(422, 'Check-out date must be after check-in date');
     }
     const nights = nightsBetween(checkIn, checkOut);
 
@@ -216,7 +216,7 @@ export async function updateBooking(
         Number.isNaN(effectiveCheckOut.getTime()) ||
         effectiveCheckOut <= effectiveCheckIn
       ) {
-        throw new ApiError(400, 'Check-out date must be after check-in date');
+        throw new ApiError(422, 'Check-out date must be after check-in date');
       }
       if (effectiveRoomId) {
         await assertNoOverlap(

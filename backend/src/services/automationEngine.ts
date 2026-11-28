@@ -8,14 +8,15 @@
 // event, so two rules with the same action cannot double-create.
 //
 // Every rule run writes an AutomationExecution row and bumps the rule's
-// execution_count / last_triggered_at. send_email is LOG ONLY — no email
-// provider exists yet, so the execution is recorded with status 'logged'
-// and nothing is sent.
-import type { Automation, Booking, Invoice, Room } from '@prisma/client';
+// execution_count / last_triggered_at. send_email sends a real email through
+// Resend when RESEND_API_KEY and EMAIL_FROM are set (see services/email.ts);
+// when they are not set the run is recorded as failed with a clear reason.
+import type { Automation, Booking, Guest, Invoice, Room } from '@prisma/client';
 import type { DbClient } from './counters.js';
 import { nextNumber } from './counters.js';
 import { createInvoiceRecord } from './invoices.js';
 import { logActivity } from './activity.js';
+import { sendEmail, welcomeEmail } from './email.js';
 
 export type StoreEventType =
   | 'booking.created'
@@ -86,13 +87,14 @@ export async function evaluateAutomations(
   if (!room && event.booking?.room_id) {
     room = await db.room.findUnique({ where: { id: event.booking.room_id } });
   }
-  let guestName = 'Guest';
+  let guest: Guest | null = null;
   if (event.booking?.guest_id) {
-    const guest = await db.guest.findUnique({
+    guest = await db.guest.findUnique({
       where: { id: event.booking.guest_id },
     });
-    if (guest) guestName = guest.name;
   }
+  const guestName = guest?.name ?? 'Guest';
+  const guestEmail = guest?.email ?? null;
   const roomNumber = room?.number ?? null;
   const booking = event.booking ?? null;
 
@@ -187,11 +189,39 @@ export async function evaluateAutomations(
         break;
       }
       case 'send_email': {
-        // No email provider is configured: record the action, send nothing.
-        status = 'logged';
-        detail =
-          `Email action recorded (template: ${String(config.template ?? 'default')}) ` +
-          `for booking ${booking?.booking_number ?? ''} — no email provider is configured, nothing was sent`;
+        const template = String(config.template ?? 'default');
+        if (!guestEmail) {
+          status = 'skipped';
+          detail =
+            `Email skipped (template: ${template}): ` +
+            `the guest has no email address on file`;
+        } else {
+          const hotel = await db.hotel.findUnique({
+            where: { id: event.hotelId },
+          });
+          const { subject, html } =
+            template === 'welcome'
+              ? welcomeEmail({
+                  hotelName: hotel?.name ?? 'Hotel Autopilot ONE',
+                  guestName,
+                  roomNumber,
+                })
+              : {
+                  subject: `A note from ${hotel?.name ?? 'Hotel Autopilot ONE'}`,
+                  html: `<p>Dear ${guestName},</p><p>Thank you for staying with us.</p>`,
+                };
+          const result = await sendEmail({ to: guestEmail, subject, html });
+          if (result.sent) {
+            status = 'completed';
+            detail =
+              `Sent ${template} email to ${guestEmail}` +
+              (result.id ? ` (provider id ${result.id})` : '');
+          } else {
+            status = 'failed';
+            detail =
+              `Could not send ${template} email to ${guestEmail}: ${result.error}`;
+          }
+        }
         await logActivity(db, {
           hotel_id: event.hotelId,
           user_id: event.actorId ?? null,

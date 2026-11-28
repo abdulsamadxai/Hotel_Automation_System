@@ -98,7 +98,7 @@ export default function Login() {
         </div>
 
         {/* Form */}
-        <div className="glass-card p-8 border border-white/10 shadow-glow mx-auto">
+        <div className="glass-card p-8 border border-border mx-auto">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -110,7 +110,7 @@ export default function Login() {
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10 bg-muted/30 border-white/5"
+                  className="pl-10 bg-muted/30 border-border"
                   required
                 />
               </div>
@@ -126,7 +126,7 @@ export default function Login() {
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10 bg-muted/30 border-white/5"
+                  className="pl-10 bg-muted/30 border-border"
                   required
                 />
               </div>
@@ -145,7 +145,7 @@ export default function Login() {
                   className="pl-10 bg-primary/5 border-primary/20 focus:border-primary font-mono tracking-widest"
                 />
               </div>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Required for manager, housekeeping and staff accounts. Owner
                 and super-admin accounts do not need one. Demo codes:{" "}
                 <span className="font-mono">DEMO-1001</span> (Grand Plaza Hotel)

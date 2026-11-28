@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, hotelParams } from "@/lib/api";
+import { api, hotelParams, writeHotelParams } from "@/lib/api";
 import type {
   HousekeepingTask as CanonicalTask,
   TaskPriority,
@@ -66,6 +66,7 @@ export function useHousekeepingTasks() {
 
 export function useCreateTask() {
   const queryClient = useQueryClient();
+  const { role, hotelId } = useAuth();
 
   return useMutation({
     mutationFn: async (task: {
@@ -77,15 +78,22 @@ export function useCreateTask() {
       description?: string;
       due_at?: string;
     }) => {
+      // The server requires description (min 1) — never send an empty one.
+      // The dialog normally supplies it (falling back to type + room
+      // number); this last-resort derivation keeps direct callers safe too.
+      const description =
+        task.description?.trim() ||
+        `${task.type.replace(/_/g, " ")} — room ${task.room_id}`;
       return await api.post<TaskWithJoins>("/api/housekeeping", {
         room_id: task.room_id,
         type: task.type,
         priority: task.priority,
-        description: task.description ?? "",
+        description,
         assigned_to: task.assigned_to ?? null,
         due_at: task.due_at ?? null,
         notes: task.notes,
         status: "pending",
+        ...writeHotelParams(role, hotelId),
       });
     },
     onSuccess: () => {

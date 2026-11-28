@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Hotel, Loader2, Mail, Lock } from 'lucide-react';
+import { Loader2, Mail, Lock } from 'lucide-react';
+import { AuthLayout } from '@/components/auth/AuthLayout';
 
 function formatRole(role: string): string {
   return role.replace(/_/g, ' ');
@@ -86,19 +87,12 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-8">
-        {/* Logo */}
-        <div className="text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 text-primary mb-4">
-            <Hotel className="h-8 w-8" />
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight">Hotel Autopilot ONE</h1>
-          <p className="text-muted-foreground mt-2">Enterprise SaaS Platform</p>
-        </div>
-
+    <AuthLayout
+      title="Hotel Autopilot ONE"
+      subtitle="Enterprise SaaS Platform"
+      footer="Protected by enterprise-grade security"
+    >
         {/* Form */}
-        <div className="glass-card p-8 border border-border mx-auto">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -178,12 +172,6 @@ export default function Login() {
               </Link>
             </div>
           </div>
-        </div>
-
-        <p className="text-center text-xs text-muted-foreground">
-          Protected by enterprise-grade security
-        </p>
-      </div>
-    </div>
+    </AuthLayout>
   );
 }

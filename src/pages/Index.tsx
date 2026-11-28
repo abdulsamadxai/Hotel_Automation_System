@@ -28,6 +28,7 @@ import {
   Users,
   DollarSign,
   CalendarCheck,
+  CalendarDays,
   Building2,
   ListChecks,
   ClipboardList,
@@ -41,6 +42,9 @@ import {
   ArrowLeft,
   Wallet,
   AlertTriangle,
+  Banknote,
+  TrendingUp,
+  PiggyBank,
 } from "lucide-react";
 import { useRooms } from "@/hooks/useRooms";
 import { useBookings } from "@/hooks/useBookings";
@@ -402,6 +406,7 @@ function DashboardContent(props: DashboardContentProps) {
     subtitle: string,
     icon: typeof Bed,
     status: Room["status"],
+    iconColor?: string,
   ) => (
     <div
       className={`cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.98] ${
@@ -411,7 +416,7 @@ function DashboardContent(props: DashboardContentProps) {
         setActiveFilter(activeFilter === status ? null : status)
       }
     >
-      <KPICard title={title} value={value} subtitle={subtitle} icon={icon} />
+      <KPICard title={title} value={value} subtitle={subtitle} icon={icon} iconColor={iconColor} />
     </div>
   );
 
@@ -572,6 +577,7 @@ function DashboardContent(props: DashboardContentProps) {
                 `${occupiedRooms} of ${totalRooms} rooms occupied`,
                 Bed,
                 "occupied",
+                "text-status-info",
               )}
               {statusFilterCard(
                 "Available Rooms",
@@ -579,6 +585,7 @@ function DashboardContent(props: DashboardContentProps) {
                 "Ready for check-in",
                 Building2,
                 "available",
+                "text-status-success",
               )}
               {statusFilterCard(
                 "Dirty Rooms",
@@ -586,32 +593,39 @@ function DashboardContent(props: DashboardContentProps) {
                 "Awaiting housekeeping",
                 ClipboardList,
                 "dirty",
+                "text-status-warning",
               )}
               <KPICard
                 title="Rooms Needing Attention"
                 value={dirtyRooms + cleaningRooms + maintenanceRooms}
                 subtitle={`${cleaningRooms} cleaning · ${maintenanceRooms} maintenance`}
                 icon={AlertTriangle}
+                iconColor="text-status-error"
               />
             </div>
 
             {/* Revenue — owner, manager and super-admin on a hotel */}
             {canSeeRevenue && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <KPICard title="Revenue Today" value={formatAndConvert(revenueToday, currency)} icon={DollarSign} subtitle="Collected today" />
-                <KPICard title="Revenue · Last 7 Days" value={formatAndConvert(revenue7d, currency)} icon={DollarSign} subtitle="Collected in the last 7 days" />
-                <KPICard title="Revenue · This Month" value={formatAndConvert(revenueMonth, currency)} icon={DollarSign} subtitle="Collected this calendar month" />
-                <KPICard title="Revenue · This Year" value={formatAndConvert(revenueYear, currency)} icon={DollarSign} subtitle="Collected this calendar year" />
-              </div>
+              <section aria-label="Revenue">
+                <h2 className="text-base font-semibold mb-3">Revenue</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <KPICard title="Revenue Today" value={formatAndConvert(revenueToday, currency)} icon={Banknote} iconColor="text-status-success" subtitle="Collected today" />
+                  <KPICard title="Revenue · Last 7 Days" value={formatAndConvert(revenue7d, currency)} icon={TrendingUp} iconColor="text-status-success" subtitle="Collected in the last 7 days" />
+                  <KPICard title="Revenue · This Month" value={formatAndConvert(revenueMonth, currency)} icon={CalendarDays} iconColor="text-status-success" subtitle="Collected this calendar month" />
+                  <KPICard title="Revenue · This Year" value={formatAndConvert(revenueYear, currency)} icon={PiggyBank} iconColor="text-status-success" subtitle="Collected this calendar year" />
+                </div>
+              </section>
             )}
 
             {/* Operational counts — real task / message / alert numbers */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
               <KPICard title="Pending Tasks" value={pendingTasks.length} subtitle="Housekeeping tasks awaiting start" icon={ListChecks} />
-              <KPICard title="Overdue Tasks" value={overdueTasks.length} subtitle="Past their due time" icon={AlertTriangle} />
-              <KPICard title="Unread Messages" value={unreadMessages} subtitle="Inbound messages not yet read" icon={MessageSquare} />
-              <KPICard title="Unread Alerts" value={unreadNotifications} subtitle="Notifications awaiting review" icon={Bell} />
-              <KPICard title="Outstanding Balances" value={formatAndConvert(outstanding.amount, currency)} subtitle={`${outstanding.count} unpaid invoice${outstanding.count === 1 ? "" : "s"}`} icon={Wallet} />
+              <KPICard title="Overdue Tasks" value={overdueTasks.length} subtitle="Past their due time" icon={AlertTriangle} iconColor="text-status-error" />
+              <KPICard title="Unread Messages" value={unreadMessages} subtitle="Inbound messages not yet read" icon={MessageSquare} iconColor="text-status-info" />
+              <KPICard title="Unread Alerts" value={unreadNotifications} subtitle="Notifications awaiting review" icon={Bell} iconColor="text-status-warning" />
+              <div className="col-span-2 lg:col-span-1 [&>div]:h-full">
+                <KPICard title="Outstanding Balances" value={formatAndConvert(outstanding.amount, currency)} subtitle={`${outstanding.count} unpaid invoice${outstanding.count === 1 ? "" : "s"}`} icon={Wallet} iconColor="text-status-warning" />
+              </div>
             </div>
 
             <TodayOverview

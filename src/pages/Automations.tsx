@@ -386,7 +386,7 @@ export default function Automations() {
                       {/* Trigger → Action Flow */}
                       <div className="flex items-center gap-2 mt-4 p-3 bg-muted/30 rounded-lg">
                         <div className="flex-1">
-                          <p className="text-[10px] uppercase text-muted-foreground mb-1">
+                          <p className="text-xs uppercase text-muted-foreground mb-1">
                             Trigger
                           </p>
                           <p className="text-sm font-mono bg-background/50 px-2 py-1 rounded">
@@ -395,7 +395,7 @@ export default function Automations() {
                         </div>
                         <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
                         <div className="flex-1">
-                          <p className="text-[10px] uppercase text-muted-foreground mb-1">
+                          <p className="text-xs uppercase text-muted-foreground mb-1">
                             Action
                           </p>
                           <p className="text-sm font-mono bg-background/50 px-2 py-1 rounded">
@@ -439,8 +439,7 @@ export default function Automations() {
                       <div className="flex gap-1">
                         <Button
                           variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
+                          size="icon-sm"
                           onClick={() => openEditDialog(rule)}
                           aria-label={`Edit ${rule.name}`}
                         >
@@ -448,8 +447,8 @@ export default function Automations() {
                         </Button>
                         <Button
                           variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive"
+                          size="icon-sm"
+                          className="text-destructive"
                           onClick={() => setDeleteId(rule.id)}
                           aria-label={`Delete ${rule.name}`}
                         >

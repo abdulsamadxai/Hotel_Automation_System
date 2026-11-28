@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import defaultTheme from "tailwindcss/defaultTheme";
 import tailwindcssAnimate from "tailwindcss-animate";
 
 export default {
@@ -14,6 +15,10 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ["Inter", ...defaultTheme.fontFamily.sans],
+        mono: ["JetBrains Mono", ...defaultTheme.fontFamily.mono],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -104,7 +109,9 @@ export default {
         "accordion-up": "accordion-up 0.2s ease-out",
       },
       boxShadow: {
-        glow: "0 0 20px hsl(160, 84%, 39%, 0.3)",
+        // Theme-aware: dark halo in dark mode, softer halo in light mode
+        // (see --shadow-glow in src/index.css / src/styles/themes.css).
+        glow: "var(--shadow-glow)",
       },
     },
   },

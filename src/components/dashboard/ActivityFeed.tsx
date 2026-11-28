@@ -55,7 +55,7 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
     <div className="glass-card overflow-hidden">
       <div className="p-4 border-b border-border">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold">Recent activity</h3>
+          <h3 className="text-base font-semibold">Recent activity</h3>
           <Link
             to="/logs"
             className="text-xs text-primary hover:underline"
@@ -92,7 +92,7 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
                       <p className="text-sm font-medium">
                         {activity.action.replace(/_/g, " ")}
                       </p>
-                      <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
                         {formatTimestamp(activity.created_at)}
                       </span>
                     </div>
@@ -100,7 +100,7 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
                       {activity.details}
                     </p>
                     {activity.user_name && (
-                      <p className="text-[10px] text-muted-foreground/70 mt-0.5">
+                      <p className="text-xs text-muted-foreground mt-0.5">
                         by {activity.user_name}
                       </p>
                     )}

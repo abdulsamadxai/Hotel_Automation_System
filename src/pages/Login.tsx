@@ -133,10 +133,10 @@ export default function Login() {
                 <Input
                   id="hotelCode"
                   type="text"
-                  placeholder="DEMO-1001"
+                  placeholder="Enter your hotel code"
                   value={hotelCode}
                   onChange={(e) => setHotelCode(e.target.value.toUpperCase())}
-                  className="pl-10 bg-primary/5 border-primary/20 focus:border-primary font-mono tracking-widest"
+                  className="pl-10 bg-primary/5 border-primary/20 focus:border-primary font-mono tracking-widest placeholder:font-sans placeholder:tracking-normal placeholder:text-muted-foreground"
                 />
               </div>
               <p className="text-xs text-muted-foreground">

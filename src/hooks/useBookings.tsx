@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, hotelParams } from "@/lib/api";
+import { api, hotelParams, writeHotelParams } from "@/lib/api";
 import type {
   BookingCreateInput,
   BookingStatus,
@@ -32,12 +32,16 @@ export function useBookings() {
 
 export function useCreateBooking() {
   const queryClient = useQueryClient();
+  const { role, hotelId } = useAuth();
 
   return useMutation({
     mutationFn: async (booking: BookingCreateInput) => {
       // The server computes nights and total_amount from the room's
       // price_per_night; the response is the truth.
-      return await api.post<Booking>("/api/bookings", booking);
+      return await api.post<Booking>("/api/bookings", {
+        ...booking,
+        ...writeHotelParams(role, hotelId),
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bookings"] });

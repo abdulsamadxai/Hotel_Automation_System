@@ -598,7 +598,7 @@ function DashboardContent(props: DashboardContentProps) {
               <KPICard
                 title="Rooms Needing Attention"
                 value={dirtyRooms + cleaningRooms + maintenanceRooms}
-                subtitle={`${cleaningRooms} cleaning · ${maintenanceRooms} maintenance`}
+                subtitle={`${dirtyRooms} dirty · ${cleaningRooms} cleaning · ${maintenanceRooms} maintenance`}
                 icon={AlertTriangle}
                 iconColor="text-status-error"
               />

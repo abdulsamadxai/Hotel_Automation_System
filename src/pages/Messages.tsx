@@ -150,7 +150,7 @@ export default function Messages() {
                             )}
                           </div>
                         </div>
-                        <div className="absolute right-2 bottom-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="absolute right-2 bottom-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                           <Button size="icon-sm" variant="ghost" className="text-destructive" onClick={(e) => handleDeleteConversation(e, conv.guest_id)}>
                             <Trash2 className="h-3 w-3" />
                           </Button>

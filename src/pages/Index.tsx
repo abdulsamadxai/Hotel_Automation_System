@@ -631,7 +631,7 @@ function DashboardContent(props: DashboardContentProps) {
             )}
 
             {/* Operational counts — real task / message / alert numbers */}
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               <KPICard title="Pending Tasks" value={pendingTasks.length} subtitle="Housekeeping tasks awaiting start" icon={ListChecks} />
               <KPICard title="Overdue Tasks" value={overdueTasks.length} subtitle="Past their due time" icon={AlertTriangle} iconColor="text-status-error" />
               <KPICard title="Unread Messages" value={unreadMessages} subtitle="Inbound messages not yet read" icon={MessageSquare} iconColor="text-status-info" />

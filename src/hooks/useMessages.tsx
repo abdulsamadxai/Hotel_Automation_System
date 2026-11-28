@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, hotelParams } from "@/lib/api";
+import { api, hotelParams, writeHotelParams } from "@/lib/api";
 import type { Message as CanonicalMessage, MessageChannel, MessageDirection, MessageCreateInput } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -84,6 +84,7 @@ export function useConversations() {
 
 export function useSendMessage() {
     const queryClient = useQueryClient();
+    const { role, hotelId } = useAuth();
 
     return useMutation({
         mutationFn: async (msg: { guest_id: string; message: string; channel?: MessageChannel }) => {
@@ -93,6 +94,7 @@ export function useSendMessage() {
                 channel: msg.channel,
                 direction: 'outbound',
                 status: 'sent',
+                ...writeHotelParams(role, hotelId),
             };
             return await api.post<Message>("/api/messages", input);
         },

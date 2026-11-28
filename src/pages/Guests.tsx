@@ -342,7 +342,7 @@ export default function Guests() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="opacity-0 group-hover:opacity-100 transition-opacity text-primary hover:text-primary hover:bg-primary/10"
+                          className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity text-primary hover:text-primary hover:bg-primary/10"
                           onClick={() => handleOpenDialog(guest)}
                         >
                           <Save className="h-4 w-4" />
@@ -350,7 +350,7 @@ export default function Guests() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+                          className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
                           onClick={() => {
                             if (confirm(`Are you sure you want to delete ${guest.name}? This action cannot be undone.`)) {
                               deleteGuest.mutate(guest.id);

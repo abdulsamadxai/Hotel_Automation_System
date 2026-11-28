@@ -288,7 +288,7 @@ export default function Rooms() {
                   </div>
                 </div>
 
-                <div className="mt-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="mt-4 flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                   <Select
                     value={room.status}
                     onValueChange={(v) => handleStatusChange(room.id, v as RoomStatus)}

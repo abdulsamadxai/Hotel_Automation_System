@@ -171,6 +171,8 @@ invoicesRouter.patch(
     const amount =
       body.amount !== undefined ? roundMoney(body.amount) : invoice.amount;
     const tax = body.tax !== undefined ? roundMoney(body.tax) : invoice.tax;
+    const amountChanged =
+      body.amount !== undefined && roundMoney(body.amount) !== invoice.amount;
     const updated = await prisma.$transaction(async (tx) => {
       if (body.line_items !== undefined) {
         await tx.invoiceLineItem.deleteMany({
@@ -185,6 +187,21 @@ invoicesRouter.patch(
             type: item.type,
           })),
         });
+      } else if (amountChanged) {
+        // Keep the auto-generated "Room charge" line item in sync with the
+        // new amount, so sum(line items) still equals total. (Line items
+        // carry no tax field; tax lives on the invoice itself.)
+        const autoItems = invoice.line_items.filter(
+          (item) =>
+            item.type === 'charge' &&
+            item.description.startsWith('Room charge ('),
+        );
+        if (autoItems.length === 1) {
+          await tx.invoiceLineItem.update({
+            where: { id: autoItems[0].id },
+            data: { amount },
+          });
+        }
       }
       return tx.invoice.update({
         where: { id: invoice.id },
@@ -235,7 +252,17 @@ invoicesRouter.post(
     if (invoice.status === 'cancelled' || invoice.status === 'refunded') {
       throw new ApiError(409, `Cannot pay a ${invoice.status} invoice`);
     }
+    if (invoice.status === 'paid') {
+      throw new ApiError(409, 'Invoice is already paid');
+    }
     const amountPaid = roundMoney(invoice.amount_paid + body.amount);
+    if (amountPaid > invoice.total) {
+      const remaining = roundMoney(invoice.total - invoice.amount_paid);
+      throw new ApiError(
+        400,
+        `Payment of $${body.amount.toFixed(2)} exceeds the remaining balance of $${remaining.toFixed(2)}`,
+      );
+    }
     const paidInFull = amountPaid >= invoice.total;
     const updated = await prisma.$transaction(async (tx) => {
       const next = await tx.invoice.update({

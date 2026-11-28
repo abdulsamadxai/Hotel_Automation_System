@@ -38,7 +38,7 @@ function withOverdue(task: TaskWithJoins): HousekeepingTask {
 export function useHousekeepingTasks() {
   const { hotelId, role, user } = useAuth();
   // The staff list gives the current user's staff record, so the
-  // housekeeping role only sees tasks assigned to them.
+  // housekeeping and staff roles only see tasks assigned to them.
   const { data: staff = [] } = useStaff();
 
   return useQuery({
@@ -48,8 +48,8 @@ export function useHousekeepingTasks() {
 
       let tasks = await api.get<TaskWithJoins[]>("/api/housekeeping", hotelParams(hotelId));
 
-      // Role isolation: Housekeeping only sees their own tasks.
-      if (role === 'housekeeping') {
+      // Role isolation: housekeeping and staff only see their own tasks.
+      if (role === 'housekeeping' || role === 'staff') {
         const mine = staff.find((s) => s.user_id === user?.id);
         if (mine) {
           tasks = tasks.filter(t => t.assigned_to === mine.id);

@@ -120,7 +120,7 @@ export default function Logs() {
                         <Icon className="h-5 w-5" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
                           <div>
                             <p className="font-mono text-sm font-medium">
                               {log.action}
@@ -149,7 +149,7 @@ export default function Logs() {
                         size="icon"
                         variant="ghost"
                         aria-label="Delete log entry"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive/90"
+                        className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive/90"
                         onClick={() => handleDelete(log.id)}
                       >
                         <Trash2 className="h-4 w-4" />

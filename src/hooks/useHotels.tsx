@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import type { Hotel } from "@/lib/types";
 import { toast } from "@/hooks/use-toast";
 
@@ -18,12 +18,17 @@ export function useHotel(hotelId: string | null) {
     queryFn: async () => {
       if (!hotelId) return null;
       // Super-admins have hotelId 'global' until they pick a hotel, so
-      // fall back to the first hotel rather than showing nothing.
+      // fall back to the first hotel rather than showing nothing — but
+      // only when the hotel itself is missing (404). A network error or
+      // a 401/403 must surface instead of being masked by a list fetch.
       try {
         return await api.get<Hotel>(`/api/hotels/${hotelId}`);
-      } catch {
-        const all = await api.get<Hotel[]>("/api/hotels");
-        return all[0] ?? null;
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) {
+          const all = await api.get<Hotel[]>("/api/hotels");
+          return all[0] ?? null;
+        }
+        throw error;
       }
     },
     enabled: !!hotelId,
